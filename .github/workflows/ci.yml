@@ -53,6 +53,7 @@ jobs:
               - "uv.lock"
               - ".python-version"
               - "scripts/*.sh"
+              - "apps/web/src/lib/api/schema.d.ts"
             web:
               - "apps/web/**"
               - "package.json"
@@ -131,6 +132,15 @@ jobs:
 
       - name: Tests
         run: uv run pytest
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: API types are in sync
+        # Generated from the OpenAPI schema and committed. If they drift, the
+        # SPA typechecks against an API that no longer exists.
+        run: ./scripts/generate-api-types.sh --check
 
   web:
     needs: changes

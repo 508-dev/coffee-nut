@@ -13,6 +13,11 @@ PYTHONPATH=apps/api:apps/api/src \
 DJANGO_SETTINGS_MODULE=coffeenut.settings.test \
   uv run python apps/api/manage.py makemigrations --check --dry-run
 
+# The SPA's types are generated from the OpenAPI schema. If they drift, the
+# frontend typechecks against an API that no longer exists.
+echo "==> api types"
+./scripts/generate-api-types.sh --check
+
 ./scripts/test.sh
 
 echo "==> web build"

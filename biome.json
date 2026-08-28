@@ -16,7 +16,8 @@
       "!bun.lock",
       "!**/.opencode",
       "!opencode.json",
-      "!apps/api/**/fixtures"
+      "!apps/api/**/fixtures",
+      "!apps/web/src/lib/api/schema.d.ts"
     ]
   },
   "formatter": {

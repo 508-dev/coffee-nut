@@ -3,11 +3,11 @@
 A web application for coffee enthusiasts to record the beans they buy and the
 brews they make with them, and to share individual brews publicly by link.
 
-Status: **backend complete**. Steps 1–6 of §12 are built and green
-(`./scripts/check-all.sh`): the toolchain, `common`, `accounts`, the auth
-surface, `catalog` with its seed data, the `Coffee`/`Bag`/`Brew` domain, and
-public sharing. Every flow in the brief is covered by tests. Only the web
-feature screens (§12 steps 7–8) remain. Where this document and the code differ,
+Status: **backend complete, web skeleton in place**. Steps 1–7 of §12 are
+built and green (`./scripts/check-all.sh`). The API is finished and every flow
+in the brief is covered by tests; the SPA has its auth store, route guard,
+sign-in, registration, and the public share page, all verified in a real
+browser. Only the authenticated feature screens (§12 step 8) remain. Where this document and the code differ,
 the code wins — say so here rather than letting them drift.
 
 ## 1. Decisions
@@ -529,8 +529,14 @@ generated runtime client or a data-fetching library: the brief asks for a small
 bundle, and route-level code splitting plus a thin client is how that is
 achieved.
 
-`bun run generate:api` regenerates types from a running API; CI fails if the
-committed types drift from the schema.
+`./scripts/generate-api-types.sh` regenerates the types by reading the schema
+straight from Django, so it needs no running server and works offline and in CI.
+The output is committed, and `--check` runs in `check-all.sh` and CI: if the
+types drift, the SPA is typechecking against an API that no longer exists.
+
+Styling is hand-rolled CSS with a dozen custom properties in `src/app.css`,
+including a `prefers-color-scheme` dark variant. No component library and no CSS
+framework, per the bundle budget above.
 
 ### Bundle discipline
 
@@ -648,10 +654,14 @@ Not blocking the scaffold; each has a stated default so work can proceed.
    end to end by `tests/test_brewing.py::TestBriefWalkthrough`.
 6. **Done.** `sharing`: share token issue, rotate, and revoke, plus the
    anonymous read view behind an allowlist serializer.
-7. SvelteKit shell: auth store, fetch wrapper, generated types, route skeleton.
-8. Web feature screens, ending with the public share page.
+7. **Done.** SvelteKit shell: auth store, fetch wrapper, generated types,
+   route guard, sign-in, registration, and the public share page — the one
+   screen with no auth, so it validates the whole shape early.
+8. The authenticated feature screens: dashboard, coffees, bags, bag detail with
+   its brew list, the method-aware brew form, brew detail with the share
+   toggle, and settings.
 
-Steps 1–6 carried nearly all the architectural risk and are complete.
+Steps 1–7 carried nearly all the architectural risk and are complete.
 Everything after them is largely mechanical.
 
 The tenancy sweep from step 2 is live and now covers `grinders`, `coffees`,

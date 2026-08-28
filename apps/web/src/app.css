@@ -1,0 +1,144 @@
+/* Design tokens.
+ *
+ * Hand-rolled and deliberately small: the brief prioritises bundle size, and a
+ * dozen custom properties cover everything the app needs. Restyling later means
+ * editing this block, not hunting through components.
+ */
+:root {
+  --bg: #fbf9f7;
+  --surface: #ffffff;
+  --border: #e3ddd6;
+  --text: #241d18;
+  --text-muted: #6d635b;
+  --accent: #7a4b28;
+  --accent-text: #ffffff;
+  --danger: #a02c2c;
+  --ok: #2f6f44;
+
+  --radius: 6px;
+  --gap: 1rem;
+  --gap-sm: 0.5rem;
+  --gap-lg: 2rem;
+  --measure: 42rem;
+
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17130f;
+    --surface: #211b16;
+    --border: #3a312a;
+    --text: #f2ece6;
+    --text-muted: #a89c92;
+    --accent: #c78a55;
+    --accent-text: #1a1410;
+    --danger: #e07070;
+    --ok: #6fbf8a;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  line-height: 1.5;
+}
+
+main {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: var(--gap-lg) var(--gap);
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  margin: 0 0 var(--gap-sm);
+}
+
+a {
+  color: var(--accent);
+}
+
+label {
+  display: block;
+  margin-bottom: var(--gap);
+}
+
+label > span {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+button {
+  font: inherit;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+  cursor: pointer;
+}
+
+button[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--accent);
+}
+
+.field-error {
+  color: var(--danger);
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--gap);
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.stack > * + * {
+  margin-top: var(--gap);
+}
