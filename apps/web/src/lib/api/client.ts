@@ -26,6 +26,21 @@ export interface ApiErrorBody {
   errors: ApiFieldError[];
 }
 
+/**
+ * The request never reached the server.
+ *
+ * Distinguished from a bare TypeError because plenty of ordinary programming
+ * mistakes are also TypeErrors, and those must not be reported to the user as
+ * "check your connection".
+ */
+export class NetworkError extends Error {
+  constructor(cause: unknown) {
+    super("The request could not be sent.");
+    this.name = "NetworkError";
+    this.cause = cause;
+  }
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -94,7 +109,11 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     const init: RequestInit = { ...rest, headers: merged, credentials: "include" };
     if (body !== undefined) init.body = JSON.stringify(body);
 
-    return fetch(`${PUBLIC_API_BASE_URL}${path}`, init);
+    try {
+      return await fetch(`${PUBLIC_API_BASE_URL}${path}`, init);
+    } catch (cause) {
+      throw new NetworkError(cause);
+    }
   };
 
   let response = await send();

@@ -1,10 +1,13 @@
-import { ApiError } from "./client";
+import { ApiError, NetworkError } from "./client";
 
 /**
- * Turn any thrown value into something a form can render.
+ * Turn a failed request into something a form can render.
  *
- * Returns per-field messages plus a single form-level message, matching the
- * API's error envelope where `field: null` means "not about one input".
+ * Only two things are expected here: an `ApiError` the server sent, and a
+ * `NetworkError` when the request could not be sent. Anything else is a bug in
+ * our own code and is rethrown rather than shown as "something went wrong" —
+ * swallowing it would let a real defect masquerade as a validation failure and
+ * silently pass a browser test.
  */
 export function toFormErrors(error: unknown): {
   fields: Record<string, string>;
@@ -17,5 +20,10 @@ export function toFormErrors(error: unknown): {
       message: formLevel?.message ?? error.body.detail,
     };
   }
-  return { fields: {}, message: "Something went wrong. Please try again." };
+
+  if (error instanceof NetworkError) {
+    return { fields: {}, message: "Could not reach the server. Check your connection." };
+  }
+
+  throw error;
 }

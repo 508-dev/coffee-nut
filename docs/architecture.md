@@ -3,11 +3,9 @@
 A web application for coffee enthusiasts to record the beans they buy and the
 brews they make with them, and to share individual brews publicly by link.
 
-Status: **backend complete, web skeleton in place**. Steps 1–7 of §12 are
-built and green (`./scripts/check-all.sh`). The API is finished and every flow
-in the brief is covered by tests; the SPA has its auth store, route guard,
-sign-in, registration, and the public share page, all verified in a real
-browser. Only the authenticated feature screens (§12 step 8) remain. Where this document and the code differ,
+Status: **complete**. All of §12 is built and green
+(`./scripts/check-all.sh`). Every flow in the brief works end to end, verified
+both by the test suite and by driving the real UI in a browser. Where this document and the code differ,
 the code wins — say so here rather than letting them drift.
 
 ## 1. Decisions
@@ -657,11 +655,11 @@ Not blocking the scaffold; each has a stated default so work can proceed.
 7. **Done.** SvelteKit shell: auth store, fetch wrapper, generated types,
    route guard, sign-in, registration, and the public share page — the one
    screen with no auth, so it validates the whole shape early.
-8. The authenticated feature screens: dashboard, coffees, bags, bag detail with
-   its brew list, the method-aware brew form, brew detail with the share
+8. **Done.** The authenticated screens: dashboard, coffees, bags, bag detail
+   with its brew list, the method-aware brew form, brew detail with the share
    toggle, and settings.
 
-Steps 1–7 carried nearly all the architectural risk and are complete.
+Every step is complete.
 Everything after them is largely mechanical.
 
 The tenancy sweep from step 2 is live and now covers `grinders`, `coffees`,

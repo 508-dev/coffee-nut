@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, apiFetch, setAccessToken } from "./client";
+import { ApiError, apiFetch, NetworkError, setAccessToken } from "./client";
 
 vi.mock("$env/static/public", () => ({ PUBLIC_API_BASE_URL: "http://api.test/api/v1" }));
 
@@ -132,5 +132,28 @@ describe("apiFetch", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
 
     await expect(apiFetch("/brews/abc/", { method: "DELETE" })).resolves.toBeUndefined();
+  });
+});
+
+describe("NetworkError", () => {
+  beforeEach(() => {
+    setAccessToken(null);
+    vi.restoreAllMocks();
+  });
+
+  it("wraps a transport failure so it is distinguishable from a bug", async () => {
+    // Plenty of ordinary programming mistakes are TypeErrors. If those were
+    // reported as "check your connection", a real defect would look like a
+    // network blip and pass a browser test unnoticed.
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+
+    await expect(apiFetch("/brews/")).rejects.toBeInstanceOf(NetworkError);
+  });
+
+  it("keeps the original failure as the cause", async () => {
+    const cause = new TypeError("Failed to fetch");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(cause));
+
+    await expect(apiFetch("/brews/")).rejects.toMatchObject({ cause });
   });
 });

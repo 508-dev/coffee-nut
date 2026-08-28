@@ -26,3 +26,22 @@ export interface Paginated<T> {
   results: T[];
   count?: number;
 }
+
+/** A relation as it comes back expanded: at minimum an id and a name. */
+export interface ExpandedRef {
+  id: string;
+  name: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Model the shape `?expand=` produces.
+ *
+ * The OpenAPI schema types every relation as an id, because drf-spectacular
+ * cannot know which ones a given request expanded. This swaps the chosen keys
+ * for the nested object so a screen that expands gets real types instead of a
+ * cast.
+ */
+export type Expanded<T, K extends keyof T, V = ExpandedRef> = Omit<T, K> & {
+  [P in K]: V | null;
+};
