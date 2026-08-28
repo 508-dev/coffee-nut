@@ -3,5 +3,9 @@ set -eu
 
 cd "$(dirname "$0")/.."
 
-# Formatting is explicit and separate from format:check/pre-commit.
+echo "==> ruff"
+uv run ruff format .
+uv run ruff check --fix .
+
+echo "==> biome"
 bun run format

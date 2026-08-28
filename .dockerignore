@@ -24,7 +24,12 @@ htmlcov
 
 dist
 build
-apps/web/dist
+apps/web/build
+apps/web/.svelte-kit
+
+# Django collectstatic / uploads output; rebuilt in the image.
+apps/api/staticfiles
+apps/api/media
 
 .DS_Store
 *.log

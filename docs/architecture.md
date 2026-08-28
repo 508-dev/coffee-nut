@@ -3,8 +3,10 @@
 A web application for coffee enthusiasts to record the beans they buy and the
 brews they make with them, and to share individual brews publicly by link.
 
-Status: **proposed**. No application code has been written. This document and
-`docs/selection-report.md` are the deliverable for review before scaffolding.
+Status: **partially implemented**. Steps 1–2 of §12 are built and green
+(`./scripts/check-all.sh`): the toolchain, `common`, and `accounts`. Everything
+from §12 step 3 onward is still design. Where this document and the code differ,
+the code wins — say so here rather than letting them drift.
 
 ## 1. Decisions
 
@@ -115,8 +117,13 @@ class OwnedModel(models.Model):
 ```
 
 `OwnedQuerySet.visible_to(user)` is the **only** sanctioned way a view reaches
-user data. Today it returns `owner=user`. When social features arrive, that one
-method grows a `Share` join and every endpoint inherits it. Nothing else in the
+user data. Its sibling `owned_by(user)` is identical today and deliberately
+separate: the two diverge the moment another user can share a row with you, when
+you may *see* a row without *owning* it. Reads go through the first, writes
+through the second.
+
+Today it returns `owner=user`. When social features arrive, that one method
+grows a `Share` join and every endpoint inherits it. Nothing else in the
 codebase should filter on `owner` directly.
 
 `share_token` lives on the base, so promoting bags or coffees to shareable
@@ -581,11 +588,13 @@ Not blocking the scaffold; each has a stated default so work can proceed.
 
 ## 12. Suggested Sequence
 
-1. Devkit pruning and the two-language toolchain: root `pyproject.toml`, uv
-   workspace, reworked `scripts/`, new CI matrix, rewritten `.env.example`.
-2. `common` and `accounts`: custom `User`, `OwnedModel`, `OwnedQuerySet`,
-   permissions, error handler, pagination — plus the tenancy regression test
-   before there is anything to regress.
+1. **Done.** Devkit pruning and the two-language toolchain: root
+   `pyproject.toml`, uv workspace, reworked `scripts/`, new CI matrix, rewritten
+   `.env.example`, SvelteKit shell with the API fetch wrapper.
+2. **Done.** `common` and `accounts`: custom `User`, `Profile`, `OwnedModel`,
+   `OwnedQuerySet`, `ReferenceModel`, scoped relation fields, permissions, error
+   handler, pagination — plus the tenancy sweep, written before there was
+   anything to regress.
 3. JWT auth endpoints and registration, with the cookie-based web refresh path.
 4. `catalog`: reference models, seed fixtures, typeahead endpoint.
 5. `coffee` and `brewing`: `Coffee`, `Bag`, `Brew`, full CRUD.
@@ -593,5 +602,10 @@ Not blocking the scaffold; each has a stated default so work can proceed.
 7. SvelteKit shell: auth store, fetch wrapper, generated types, route skeleton.
 8. Web feature screens, ending with the public share page.
 
-Steps 1–2 carry nearly all the architectural risk. Everything after them is
-largely mechanical.
+Steps 1–2 carried nearly all the architectural risk and are complete.
+Everything after them is largely mechanical.
+
+The tenancy sweep in step 2 currently reports itself as skipped rather than
+passing, because no owned viewsets are registered yet. That is deliberate: a
+guard test accompanies it and fails if viewsets exist but the sweep stops
+finding them, so the suite cannot go quietly vacuous.

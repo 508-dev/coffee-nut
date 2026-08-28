@@ -1,92 +1,100 @@
 # AI Agent Development Guide
 
+coffee-nut is a coffee brewing journal: a Django + DRF REST API on Postgres,
+consumed by a SvelteKit SPA and, later, native Android and iOS clients.
+
+Read `docs/architecture.md` before making structural changes. It is the design
+authority; this file is the operating manual.
+
 ## Environment
 
 - Only `python3` is guaranteed. Do not assume `python` exists.
-- Prefer package scripts and repo-provided entrypoints over raw commands. When a
-  repo uses Python, prefer `uv run`; when it uses Bun, prefer `bun run`.
-- Treat install, dev, and test commands as executable code. Inspect manifests, package scripts, lockfiles, Docker files, and setup scripts before running them in unfamiliar repos.
+- Two toolchains: **uv** for Python, **Bun** for JavaScript. Prefer
+  `uv run ...` and `bun run ...` over raw interpreters.
+- Prefer the repo scripts over ad-hoc commands. They are the same entrypoints CI
+  uses, so passing them locally means something.
+- Treat install, dev, and test commands as executable code. Inspect manifests,
+  package scripts, and lockfiles before running them.
 
 ## Dependency Supply-Chain Safety
 
 - Bun: keep `bunfig.toml` with `minimumReleaseAge = 604800`.
-- uv: add optional `exclude-newer = "P7D"` only after confirming the local
-  `uv` version supports relative `exclude-newer` durations.
-- pnpm: keep `minimumReleaseAge: 10080` in `pnpm-workspace.yaml`.
-- Bundler: use `source "https://rubygems.org", cooldown: 7` only with Bundler
-  `4.0.13` or newer, then pin that Bundler version in `Gemfile.lock`.
-- CI should use locked installs:
-  - `bun install --frozen-lockfile`
-  - `uv sync --locked` when a Python workspace is present
-  - `pnpm install --frozen-lockfile` when pnpm is used.
-  - `bundle install` with deployment/frozen settings when Ruby is used.
-- Commit lockfiles.
+- uv: keep `exclude-newer = "P7D"` and `required-version = ">=0.9.17"` in
+  `pyproject.toml`. The relative duration needs uv 0.9.17 or newer; older
+  clients fail during settings discovery, which is why the requirement is
+  declared rather than left implicit.
+- CI uses locked installs: `uv sync --locked` and `bun install --frozen-lockfile`.
+- Pin tool versions in CI (`UV_VERSION`, `BUN_VERSION` in `ci.yml`) so an
+  upstream release cannot silently change what the merge gate runs.
+- Commit `uv.lock` and `bun.lock`.
 
 ## Repository Shape
 
 - `AGENTS.md`: canonical agent operating instructions.
-- `MANIFEST.md`: file inventory and template-selection checklist.
-- `DECISIONS.md`: decision authority for devkit topology and policy.
-- `docs`: contributor-facing documentation.
-- `extras`: optional workflows, deployment examples, and support add-ons.
-- `scripts`: stable project entrypoints.
-- `skills`: optional project-local agent skills.
-- `stacks/typescript`: framework-neutral Bun/TypeScript conventions.
-- `stacks/python`: optional Python API/shared-package workspace.
-- `stacks/ruby`: optional Ruby/Rails/Rack workspace conventions.
-- `.context`: gitignored workspace-local scratch for Conductor and agents.
+- `docs/architecture.md`: data model, API surface, auth, permissions, frontend.
+- `docs/selection-report.md`: what was kept from the 508 devkit, and why.
+- `DECISIONS.md`: standing decisions and their rationale.
+- `apps/api`: Django project. Domain apps under `src/coffeenut/`.
+- `apps/web`: SvelteKit SPA in static mode.
+- `scripts`: stable entrypoints for dev, lint, typecheck, test, format.
+- `compose.yml`: Postgres and Redis for local development.
+- `.context`: gitignored workspace-local scratch for agents.
+
+## Architecture Rules
+
+These are load-bearing. Breaking them is how user data leaks.
+
+- **Never filter on `owner` directly.** Read through
+  `Model.objects.visible_to(user)` and write through `owned_by(user)`. Those
+  live in `coffeenut.common.models.OwnedQuerySet` and are the single place
+  tenancy is decided.
+- **Owned viewsets extend `OwnedModelViewSet`** and register on
+  `coffeenut.api_router.api_router`. Overriding `get_queryset` without calling
+  `super()` removes tenancy scoping; `tests/test_tenancy.py` walks the router
+  and will fail if you do.
+- **Foreign keys to user-owned models use `OwnedPrimaryKeyRelatedField`**;
+  foreign keys to reference data use `ReferencePrimaryKeyRelatedField`. A plain
+  `PrimaryKeyRelatedField` accepts another user's row.
+- **`owner` is never writable.** It is set server-side in `perform_create`.
+- **Unauthorised access returns 404, not 403.** A 403 confirms the id exists.
+- **The public share view uses its own serializer**, an explicit allowlist —
+  never the authenticated serializer with fields excluded.
+- Reference data is one table per entity with a nullable `owner`:
+  `owner IS NULL` means canonical.
 
 ## Development Workflow
 
-- Run infrastructure with Docker Compose.
-- Run app services on the host for reload speed and debuggability.
-- Use `./scripts/worktree-ports.sh env` to inspect local ports.
-- Use `./scripts/docker-compose.sh` instead of raw `docker compose` for local worktree-safe infra.
-- Use `./scripts/dev.sh` for host-run app services.
-- Treat `apps/*` as disposable wiring examples, not framework code to cargo-cult into every project.
-- Do not assume a frontend framework from this devkit. Choose Next.js, Vite, TanStack Start, Astro, Expo, or no frontend based on the target project.
-- Keep `.worktreeinclude` as a short allowlist of ignored local config to copy into sibling worktrees, such as `.env`, `.env.local`, and `.sops.yaml`.
-- Keep `.dockerignore` in sync with the repo shape so Docker build contexts exclude secrets, local dependencies, caches, `.context/`, and generated outputs.
+- Infrastructure in Docker Compose; app services on the host.
+- `./scripts/dev.sh` starts Postgres, Redis, Django, and Vite together.
+- `./scripts/worktree-ports.sh env` shows this worktree's ports. They are
+  derived from the worktree path so sibling worktrees run concurrently.
+- Use `./scripts/docker-compose.sh` rather than raw `docker compose`.
+- Keep `.worktreeinclude` as a short allowlist of ignored local config to copy
+  into sibling worktrees, such as `.env`.
+- Keep `.dockerignore` in sync with the repo shape.
 
 ## Editing Rules
 
-- Read target files, callers, exports, tests, and obvious shared utilities before editing.
-- When applying this devkit or cleaning up a GitHub-template-generated repo,
-  read `MANIFEST.md` and produce a selection report before editing. Cover every
-  top-level path in this devkit and the target repo with an adopt, adapt, skip,
-  delete, or defer decision and a one-line reason.
-- Keep edits surgical.
-- Do not reformat unrelated files.
-- Add or update tests when behavior changes.
+- Read target files, callers, and tests before editing.
+- Keep edits surgical. Do not reformat unrelated files.
+- **Model changes need a migration in the same commit.** CI runs
+  `makemigrations --check --dry-run` and will fail otherwise.
+- Add or update tests when behaviour changes.
 - Update `.env.example` when adding configuration.
-- Update docs when changing developer workflows.
-- When selecting the Python stack, the included examples use Pydantic for
-  settings/boundary schemas and Alembic for database migrations. Keep them when
-  they fit; replace them when the target repo has better existing choices.
-- Before adding uv cooldown config, run `uv --no-config --version`. Relative
-  `exclude-newer` values such as `P7D` require uv `0.9.17` or newer. If the
-  target machine is older, ask before upgrading uv; do not write `P7D` or
-  `7 days` into `pyproject.toml` or `uv.toml` because older uv clients fail
-  during settings discovery.
-- Before adding Bundler cooldown config, run `bundle --version`. The
-  `cooldown:` source option requires Bundler `4.0.13` or newer. If Bundler is
-  older, ask before upgrading it; do not add cooldown syntax that the target
-  repo's Bundler cannot parse.
-- The TypeScript stack includes Drizzle examples for database access. Keep
-  Drizzle when it fits; replace it when the target repo already uses another
-  data-access layer.
-- Keep secrets in environment variables or SOPS-managed files, never in code.
+- Update `docs/` when changing developer workflows or the API contract.
+- Tests run against real Postgres, never SQLite. The schema relies on `CHECK`
+  constraints and partial unique indexes that SQLite models differently.
+- Keep secrets in environment variables, never in code.
+- `ruff` formats Python inside Markdown too, so `docs/**` is excluded from it;
+  prose code samples are illustrative and stay under author control.
+- Biome does not parse Svelte templates. Imports used only in markup look
+  unused, which is why `noUnusedImports` is off for `*.svelte`.
 
 ## `.context/`
 
-Use `.context/` for workspace-local agent scratch only. Do not commit it.
-
-Durable project knowledge belongs in tracked docs:
-
-- Architecture and layout: `README.md`, `docs/template-proposal.md`, `docs/pattern-report.md`.
-- Tooling decisions: `docs/tooling.md`, `docs/supply-chain.md`.
-- Local development runbooks: `docs/development.md`.
-- Repeated failure patterns: concise tracked docs, not raw logs or transcripts.
+Workspace-local agent scratch only. Do not commit it. Durable knowledge belongs
+in tracked docs: architecture in `docs/architecture.md`, decisions in
+`DECISIONS.md`, runbooks in `docs/development.md`.
 
 ## Validation
 
@@ -98,7 +106,7 @@ Before calling work complete, run the narrowest relevant checks:
 ./scripts/test.sh
 ```
 
-For broader changes, run:
+For broader changes:
 
 ```bash
 ./scripts/check-all.sh

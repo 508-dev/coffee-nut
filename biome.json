@@ -1,9 +1,20 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.9/schema.json",
   "root": true,
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!**/.venv", "!**/.claude", "!**/.mypy_cache", "!**/.pytest_cache"]
+    "includes": [
+      "**",
+      "!**/.venv",
+      "!**/.claude",
+      "!**/.mypy_cache",
+      "!**/.pytest_cache",
+      "!**/.svelte-kit",
+      "!**/build",
+      "!**/node_modules",
+      "!**/staticfiles",
+      "!bun.lock"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -23,7 +34,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "correctness": {
         "noUnusedVariables": {
           "level": "error",
@@ -47,5 +58,18 @@
     "clientKind": "git",
     "useIgnoreFile": true,
     "defaultBranch": "main"
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.svelte"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedImports": "off",
+            "noUnusedVariables": "off"
+          }
+        }
+      }
+    }
+  ]
 }

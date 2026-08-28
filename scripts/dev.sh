@@ -1,93 +1,51 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
+# bash, not sh: `wait -n` (exit as soon as either service dies) is not POSIX and
+# is unsupported by dash. Every other script in scripts/ stays POSIX sh.
 set -eu
 
 cd "$(dirname "$0")/.."
 WORKTREE_ROOT="$(pwd -P)"
 
 usage() {
-  cat >&2 <<'EOF'
+  cat >&2 <<'USAGE'
 usage: dev.sh [--reclaim-ports]
 
-Options:
-  --reclaim-ports   Before starting, stop this worktree's own JS dev process
-                    if it is still listening on WEB_PORT. Adapted repos can
-                    call reclaim_service_port for other host-run app services.
-  --no-reclaim-ports
-                    Disable reclaiming even when DEVKIT_RECLAIM_PORTS=1.
-  --help            Show this help.
+Starts Compose infrastructure plus both host app services:
+  - Django  on API_PORT
+  - Vite    on WEB_PORT
 
-Environment:
-  DEVKIT_RECLAIM_PORTS=1  Same as --reclaim-ports.
-EOF
+Ports are derived from the worktree path, so sibling worktrees run together
+without editing .env. See ./scripts/worktree-ports.sh env.
+
+Options:
+  --reclaim-ports      Stop this worktree's own leftover api/web process if it
+                       still holds its port. Refuses to touch anything else.
+  --no-reclaim-ports   Disable even when DEVKIT_RECLAIM_PORTS=1.
+  --help               Show this help.
+USAGE
 }
 
 RECLAIM_PORTS="${DEVKIT_RECLAIM_PORTS:-0}"
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --reclaim-ports)
-      RECLAIM_PORTS=1
-      ;;
-    --no-reclaim-ports)
-      RECLAIM_PORTS=0
-      ;;
-    --help|-h)
-      usage
-      exit 0
-      ;;
-    *)
-      usage
-      exit 2
-      ;;
+    --reclaim-ports) RECLAIM_PORTS=1 ;;
+    --no-reclaim-ports) RECLAIM_PORTS=0 ;;
+    --help|-h) usage; exit 0 ;;
+    *) usage; exit 2 ;;
   esac
   shift
 done
 
+if [ ! -f .env ]; then
+  echo "No .env found; copying .env.example. Review it before deploying anything." >&2
+  cp .env.example .env
+fi
+
+# Exported port values win over .env: django-environ's read_env uses setdefault,
+# so the shell environment takes precedence. That is what keeps worktrees apart.
 eval "$(./scripts/worktree-ports.sh export)"
 export WEB_HOST="${WEB_HOST:-127.0.0.1}"
-
-# Root dev runs only language-neutral infra plus the TypeScript convention
-# watcher. Runtime-specific services, such as the Python API, live in stacks and
-# should be started from their stack scripts when selected for a target repo.
-echo "508 Devkit local stack"
-echo "Assigned worktree ports:"
-./scripts/worktree-ports.sh env | sed 's/^/  /'
-echo
-echo "Starting services"
-echo "  Web: ${WEB_URL} (framework-neutral TypeScript watcher)"
-echo "  Postgres: 127.0.0.1:${POSTGRES_HOST_PORT}"
-echo "  Redis: 127.0.0.1:${REDIS_HOST_PORT}"
-echo
-
-./scripts/docker-compose.sh up -d postgres redis
-
-detect_js_runner() {
-  if [ -n "${DEVKIT_JS_RUNNER:-}" ]; then
-    printf '%s\n' "$DEVKIT_JS_RUNNER"
-    return
-  fi
-
-  # Keep the root script usable when a repository chooses the pnpm stack
-  # variant. The packageManager field is the strongest signal; lockfiles are a
-  # fallback for copied templates where package.json has been edited.
-  if grep -Eq '"packageManager"[[:space:]]*:[[:space:]]*"pnpm@' package.json 2>/dev/null; then
-    printf '%s\n' pnpm
-    return
-  fi
-
-  if grep -Eq '"packageManager"[[:space:]]*:[[:space:]]*"bun@' package.json 2>/dev/null; then
-    printf '%s\n' bun
-    return
-  fi
-
-  if [ -f pnpm-lock.yaml ]; then
-    printf '%s\n' pnpm
-    return
-  fi
-
-  printf '%s\n' bun
-}
-
-JS_RUNNER="$(detect_js_runner)"
+export API_HOST="${API_HOST:-127.0.0.1}"
 
 port_listener_pids() {
   port="$1"
@@ -128,6 +86,22 @@ is_expected_service_command() {
   case "$service_name" in
     web)
       is_expected_web_dev_command "$command_line"
+      ;;
+    api)
+      is_expected_api_dev_command "$command_line"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+is_expected_api_dev_command() {
+  command_line="$1"
+  case "$command_line" in
+    *manage.py\ runserver*|*django-admin*|*gunicorn*|*uvicorn*|\
+    *" uv run"*|uv\ run*)
+      return 0
       ;;
     *)
       return 1
@@ -227,28 +201,56 @@ reclaim_service_port() {
 }
 
 if [ "$RECLAIM_PORTS" = "1" ]; then
-  if ! reclaim_service_port web "$WEB_PORT"; then
-    echo "Continuing because the root dev script does not bind WEB_PORT." >&2
-  fi
+  reclaim_service_port api "$API_PORT" || true
+  reclaim_service_port web "$WEB_PORT" || true
 fi
 
+API_PID=""
+WEB_PID=""
+
 cleanup() {
-  if [ -n "${WEB_PID:-}" ]; then kill "$WEB_PID" 2>/dev/null || true; fi
+  # Kill children on the way out so Ctrl-C does not leave a port bound.
+  [ -n "$API_PID" ] && kill "$API_PID" 2>/dev/null || true
+  [ -n "$WEB_PID" ] && kill "$WEB_PID" 2>/dev/null || true
 }
 trap cleanup INT TERM EXIT
 
-case "$JS_RUNNER" in
-  bun)
-    bun run --cwd stacks/typescript dev &
-    ;;
-  pnpm)
-    pnpm -C stacks/typescript run dev &
-    ;;
-  *)
-    echo "Unsupported DEVKIT_JS_RUNNER=${JS_RUNNER}; expected bun or pnpm." >&2
-    exit 1
-    ;;
-esac
+wait_for_postgres() {
+  attempts=0
+  while [ "$attempts" -lt 60 ]; do
+    if ./scripts/docker-compose.sh exec -T postgres \
+        pg_isready -U "${POSTGRES_USER:-app}" -d "${POSTGRES_DB:-app}" >/dev/null 2>&1; then
+      return 0
+    fi
+    attempts=$((attempts + 1))
+    sleep 0.5
+  done
+  echo "Postgres did not become ready within 30s." >&2
+  return 1
+}
+
+echo "coffee-nut local stack"
+echo
+echo "==> infrastructure"
+./scripts/docker-compose.sh up -d postgres redis
+wait_for_postgres
+
+echo "==> migrations"
+uv run python apps/api/manage.py migrate --noinput
+
+echo
+echo "  API       http://${API_HOST}:${API_PORT}  (schema at /api/docs/)"
+echo "  Web       ${WEB_URL}"
+echo "  Postgres  127.0.0.1:${POSTGRES_HOST_PORT}"
+echo "  Redis     127.0.0.1:${REDIS_HOST_PORT}"
+echo
+
+uv run python apps/api/manage.py runserver "${API_HOST}:${API_PORT}" &
+API_PID=$!
+
+bun run --cwd apps/web dev &
 WEB_PID=$!
 
-wait "$WEB_PID"
+# Surface a crash immediately rather than pretending the stack is still up.
+wait -n "$API_PID" "$WEB_PID"
+echo "A dev service exited; shutting the other one down." >&2

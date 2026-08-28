@@ -3,5 +3,8 @@ set -eu
 
 cd "$(dirname "$0")/.."
 
-# Keep the root command stable while the TypeScript stack owns compiler details.
+echo "==> mypy"
+uv run mypy
+
+echo "==> svelte-check"
 bun run typecheck

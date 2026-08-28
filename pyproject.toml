@@ -1,0 +1,95 @@
+[project]
+name = "coffee-nut"
+version = "0.1.0"
+description = "Coffee brewing journal — uv workspace root."
+requires-python = ">=3.13"
+dependencies = ["coffeenut-api"]
+
+[tool.uv]
+package = false
+# AGENTS.md mandates a dependency cooldown wherever the package manager supports
+# one. Relative durations need uv >= 0.9.17; required-version makes that explicit
+# so an older client fails with a clear message instead of a confusing
+# settings-discovery error.
+required-version = ">=0.9.17"
+exclude-newer = "P7D"
+
+[tool.uv.sources]
+coffeenut-api = { workspace = true }
+
+[tool.uv.workspace]
+members = ["apps/api"]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3,<10.0",
+  "pytest-django>=4.14,<5.0",
+  "pytest-cov>=6.0,<8.0",
+  "model-bakery>=1.20,<2.0",
+  "time-machine>=2.16,<3.0",
+  "ruff>=0.14,<1.0",
+  "mypy>=1.14,<3.0",
+  "django-stubs[compatible-mypy]>=5.1,<7.0",
+  "djangorestframework-stubs[compatible-mypy]>=3.15,<4.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["apps/api/src", "apps/api/tests"]
+# ruff formats Python blocks inside Markdown too. Prose docs use illustrative,
+# deliberately aligned samples, so keep them under author control.
+extend-exclude = ["**/migrations/*", "docs/**"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "DJ", "RUF"]
+# Django and DRF inner Meta classes are declarative configuration, not shared
+# mutable state. RUF012 fires on every one of them and annotating each with
+# ClassVar would be noise.
+ignore = ["RUF012"]
+
+[tool.ruff.lint.per-file-ignores]
+# Django settings modules legitimately use star-imports and long lines.
+"**/settings/*.py" = ["F403", "F405", "E501"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "coffeenut.settings.test"
+pythonpath = ["apps/api/src", "apps/api"]
+testpaths = ["apps/api/tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--tb=short --strict-markers"
+markers = [
+  "integration: requires local infrastructure",
+  "e2e: end-to-end test",
+]
+
+[tool.mypy]
+python_version = "3.13"
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+# apps/api is needed too: the django-stubs plugin runs django.setup(), which
+# imports tests.testapp from INSTALLED_APPS in the test settings.
+mypy_path = ["apps/api/src", "apps/api"]
+files = ["apps/api/src", "apps/api/tests"]
+exclude = ["migrations/"]
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "coffeenut.settings.test"
+
+[tool.coverage.run]
+source = ["apps/api/src/coffeenut"]
+omit = ["*/migrations/*", "*/tests/*", "*/settings/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "if __name__ == .__main__.:",
+  "raise NotImplementedError",
+  "if TYPE_CHECKING:",
+]

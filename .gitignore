@@ -1,8 +1,16 @@
 .DS_Store
+*.log
+
+# Local configuration and secrets
 .env
-.venv/
+.env.*.local
+
+# Agent/workspace scratch
 .context/
 .claude/
+
+# Python
+.venv/
 __pycache__/
 .mypy_cache/
 .pytest_cache/
@@ -10,9 +18,14 @@ __pycache__/
 .coverage
 coverage.xml
 htmlcov/
+
+# Django runtime output
+staticfiles/
+media/
+*.sqlite3
+
+# JavaScript
 node_modules/
 dist/
 build/
-.next/
-.turbo/
-*.log
+.svelte-kit/

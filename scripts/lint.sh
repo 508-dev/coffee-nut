@@ -3,6 +3,9 @@ set -eu
 
 cd "$(dirname "$0")/.."
 
-# Delegate to package scripts so target repos can swap tools without changing
-# every shell entrypoint.
+echo "==> ruff"
+uv run ruff check .
+uv run ruff format --check .
+
+echo "==> biome"
 bun run lint
