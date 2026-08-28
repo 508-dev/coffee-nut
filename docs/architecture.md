@@ -3,9 +3,10 @@
 A web application for coffee enthusiasts to record the beans they buy and the
 brews they make with them, and to share individual brews publicly by link.
 
-Status: **partially implemented**. Steps 1–3 of §12 are built and green
-(`./scripts/check-all.sh`): the toolchain, `common`, `accounts`, and the full
-auth surface. Everything from §12 step 4 onward is still design. Where this document and the code differ,
+Status: **partially implemented**. Steps 1–4 of §12 are built and green
+(`./scripts/check-all.sh`): the toolchain, `common`, `accounts`, the full auth
+surface, and `catalog` with its seed data. Everything from §12 step 5 onward is
+still design. Where this document and the code differ,
 the code wins — say so here rather than letting them drift.
 
 ## 1. Decisions
@@ -183,13 +184,19 @@ Two details are doing real work here:
 | --- | --- | --- |
 | `Country` | `iso_alpha2`, `iso_alpha3` | Yes — full ISO 3166-1. Canonical only. |
 | `Region` | `country` FK, `altitude_min_masl`, `altitude_max_masl` | Yes — major growing regions (Yirgacheffe, Huila, Antigua, …). Custom allowed. |
-| `Producer` | `country` FK, `region` FK, `altitude_*`, `website` | Starter set only. This is the "farm" of the brief. |
-| `Roaster` | `country` FK, `city`, `website` | Starter set. The "local cafe" case is a user-custom row. |
+| `Producer` | `country` FK, `region` FK, `altitude_*`, `website` | **No** — see below. This is the "farm" of the brief. |
+| `Roaster` | `country` FK, `city`, `website` | **No** — see below. The "local cafe" case is a user-custom row. |
 | `Varietal` | `parent` FK (self) | Yes — Bourbon, Typica, Geisha, SL28, Caturra, … |
 | `ProcessMethod` | `category` (washed / natural / honey / other) | Yes — washed, natural, honey, anaerobic, wet-hulled, … |
 | `BrewMethod` | `parameter_schema` (JSON) | Yes — pour over, espresso, moka pot, french press, aeropress, cold brew, drip, siphon. |
 | `TastingNote` | `parent` FK (self), `color` | Yes — a modest, independently worded hierarchy. Deliberately *not* the SCA/WCR Flavor Wheel; see §10.2. |
 | `Grinder` | `burr_type`, `setting_min`, `setting_max`, `step_size` | No — user equipment, always owned. |
+
+**Roasters and producers ship with no canonical rows.** Curating them needs
+sourcing we have not done (§11), and a half-complete canonical list is worse
+than an empty one: users trust it, fail to find their roaster, and create a
+duplicate anyway. Until then every roaster is a user-custom row, and
+`merged_into` is how they get promoted once we know which names recur.
 
 `BrewMethod.parameter_schema` deserves explanation. It does **not** store brew
 data. It declares which of `Brew`'s columns are relevant, required, or hidden
@@ -621,16 +628,17 @@ Not blocking the scaffold; each has a stated default so work can proceed.
 3. **Done.** JWT auth endpoints and registration, with the cookie-based web
    refresh path, email verification, password reset, session revocation, and
    throttling.
-4. `catalog`: reference models, seed fixtures, typeahead endpoint.
+4. **Done.** `catalog`: reference models, seed fixtures, `seed_catalog`
+   management command, and the ranked typeahead endpoint.
 5. `coffee` and `brewing`: `Coffee`, `Bag`, `Brew`, full CRUD.
 6. `sharing`: share token issue/revoke and the public read view.
 7. SvelteKit shell: auth store, fetch wrapper, generated types, route skeleton.
 8. Web feature screens, ending with the public share page.
 
-Steps 1–3 carried nearly all the architectural risk and are complete.
+Steps 1–4 carried nearly all the architectural risk and are complete.
 Everything after them is largely mechanical.
 
-The tenancy sweep in step 2 currently reports itself as skipped rather than
-passing, because no owned viewsets are registered yet. That is deliberate: a
-guard test accompanies it and fails if viewsets exist but the sweep stops
-finding them, so the suite cannot go quietly vacuous.
+The tenancy sweep from step 2 is now live: `Grinder` is the first owned
+viewset on the router, so the sweep runs against it rather than skipping. It was
+verified by temporarily removing `GrinderViewSet`'s scoping, which failed the
+sweep with the expected diagnostic.

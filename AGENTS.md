@@ -89,6 +89,9 @@ These are load-bearing. Breaking them is how user data leaks.
   prose code samples are illustrative and stay under author control.
 - Biome does not parse Svelte templates. Imports used only in markup look
   unused, which is why `noUnusedImports` is off for `*.svelte`.
+- Seed fixtures under `apps/api/**/fixtures/` are excluded from Biome. They
+  are curated data grouped with blank lines for review; reformatting them
+  as source would flatten that.
 
 ## `.context/`
 

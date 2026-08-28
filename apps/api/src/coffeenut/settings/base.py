@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     # Local
     "coffeenut.common",
     "coffeenut.accounts",
+    "coffeenut.catalog",
 ]
 
 MIDDLEWARE = [

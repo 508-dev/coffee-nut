@@ -1,0 +1,21 @@
+[
+  {"name": "Washed", "category": "washed"},
+  {"name": "Fully Washed", "category": "washed"},
+  {"name": "Double Washed", "category": "washed"},
+  {"name": "Kenya Washed", "category": "washed"},
+  {"name": "Natural", "category": "natural"},
+  {"name": "Dry Natural", "category": "natural"},
+  {"name": "Honey", "category": "honey"},
+  {"name": "White Honey", "category": "honey"},
+  {"name": "Yellow Honey", "category": "honey"},
+  {"name": "Red Honey", "category": "honey"},
+  {"name": "Black Honey", "category": "honey"},
+  {"name": "Pulped Natural", "category": "honey"},
+  {"name": "Wet Hulled", "category": "other"},
+  {"name": "Anaerobic Natural", "category": "other"},
+  {"name": "Anaerobic Washed", "category": "other"},
+  {"name": "Carbonic Maceration", "category": "other"},
+  {"name": "Lactic Fermentation", "category": "other"},
+  {"name": "Yeast Inoculated", "category": "other"},
+  {"name": "Experimental", "category": "other"}
+]

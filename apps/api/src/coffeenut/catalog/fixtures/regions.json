@@ -1,0 +1,53 @@
+[
+  {"name": "Yirgacheffe", "country": "ET", "altitude_min_masl": 1700, "altitude_max_masl": 2200},
+  {"name": "Sidamo", "country": "ET", "altitude_min_masl": 1500, "altitude_max_masl": 2200},
+  {"name": "Guji", "country": "ET", "altitude_min_masl": 1800, "altitude_max_masl": 2300},
+  {"name": "Harrar", "country": "ET", "altitude_min_masl": 1400, "altitude_max_masl": 2000},
+  {"name": "Limu", "country": "ET", "altitude_min_masl": 1400, "altitude_max_masl": 2000},
+
+  {"name": "Nyeri", "country": "KE", "altitude_min_masl": 1600, "altitude_max_masl": 2000},
+  {"name": "Kirinyaga", "country": "KE", "altitude_min_masl": 1500, "altitude_max_masl": 1900},
+  {"name": "Kiambu", "country": "KE", "altitude_min_masl": 1500, "altitude_max_masl": 1800},
+
+  {"name": "Huila", "country": "CO", "altitude_min_masl": 1400, "altitude_max_masl": 2000},
+  {"name": "Narino", "country": "CO", "altitude_min_masl": 1500, "altitude_max_masl": 2300},
+  {"name": "Antioquia", "country": "CO", "altitude_min_masl": 1300, "altitude_max_masl": 1900},
+  {"name": "Tolima", "country": "CO", "altitude_min_masl": 1400, "altitude_max_masl": 2000},
+
+  {"name": "Antigua", "country": "GT", "altitude_min_masl": 1500, "altitude_max_masl": 1700},
+  {"name": "Huehuetenango", "country": "GT", "altitude_min_masl": 1500, "altitude_max_masl": 2000},
+  {"name": "Atitlan", "country": "GT", "altitude_min_masl": 1500, "altitude_max_masl": 1700},
+
+  {"name": "Tarrazu", "country": "CR", "altitude_min_masl": 1200, "altitude_max_masl": 1900},
+  {"name": "Central Valley", "country": "CR", "altitude_min_masl": 900, "altitude_max_masl": 1600},
+
+  {"name": "Boquete", "country": "PA", "altitude_min_masl": 1200, "altitude_max_masl": 1900},
+  {"name": "Volcan Candela", "country": "PA", "altitude_min_masl": 1200, "altitude_max_masl": 1800},
+
+  {"name": "Cerrado Mineiro", "country": "BR", "altitude_min_masl": 800, "altitude_max_masl": 1300},
+  {"name": "Sul de Minas", "country": "BR", "altitude_min_masl": 700, "altitude_max_masl": 1350},
+  {"name": "Mogiana", "country": "BR", "altitude_min_masl": 900, "altitude_max_masl": 1200},
+
+  {"name": "Gayo Highlands", "country": "ID", "altitude_min_masl": 1100, "altitude_max_masl": 1600},
+  {"name": "Toraja", "country": "ID", "altitude_min_masl": 1100, "altitude_max_masl": 1800},
+  {"name": "Java Ijen", "country": "ID", "altitude_min_masl": 900, "altitude_max_masl": 1600},
+
+  {"name": "Chiapas", "country": "MX", "altitude_min_masl": 1000, "altitude_max_masl": 1700},
+  {"name": "Oaxaca", "country": "MX", "altitude_min_masl": 900, "altitude_max_masl": 1700},
+
+  {"name": "Cusco", "country": "PE", "altitude_min_masl": 1200, "altitude_max_masl": 1900},
+  {"name": "Cajamarca", "country": "PE", "altitude_min_masl": 1200, "altitude_max_masl": 2000},
+
+  {"name": "Kona", "country": "US", "altitude_min_masl": 150, "altitude_max_masl": 900},
+
+  {"name": "Yunnan", "country": "CN", "altitude_min_masl": 1000, "altitude_max_masl": 1800},
+  {"name": "Da Lat", "country": "VN", "altitude_min_masl": 1000, "altitude_max_masl": 1600},
+  {"name": "Kivu", "country": "RW", "altitude_min_masl": 1500, "altitude_max_masl": 2000},
+  {"name": "Bugisu", "country": "UG", "altitude_min_masl": 1500, "altitude_max_masl": 2200},
+  {"name": "Nyanza Lac", "country": "BI", "altitude_min_masl": 1400, "altitude_max_masl": 1900},
+  {"name": "Blue Mountain", "country": "JM", "altitude_min_masl": 900, "altitude_max_masl": 1700},
+  {"name": "Santa Ana", "country": "SV", "altitude_min_masl": 1000, "altitude_max_masl": 1800},
+  {"name": "Marcala", "country": "HN", "altitude_min_masl": 1200, "altitude_max_masl": 1700},
+  {"name": "Jinotega", "country": "NI", "altitude_min_masl": 1100, "altitude_max_masl": 1700},
+  {"name": "Mount Elgon", "country": "KE", "altitude_min_masl": 1400, "altitude_max_masl": 1900}
+]

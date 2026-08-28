@@ -246,6 +246,11 @@ wait_for_postgres
 echo "==> migrations"
 uv run python apps/api/manage.py migrate --noinput
 
+# Idempotent: matches canonical rows on slug and updates in place, so this is
+# cheap on every start and keeps a worktree's reference data current.
+echo "==> catalog seed"
+uv run python apps/api/manage.py seed_catalog --quiet
+
 echo
 echo "  API       http://${API_HOST}:${API_PORT}  (schema at /api/docs/)"
 echo "  Web       ${WEB_URL}"

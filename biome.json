@@ -15,7 +15,8 @@
       "!**/staticfiles",
       "!bun.lock",
       "!**/.opencode",
-      "!opencode.json"
+      "!opencode.json",
+      "!apps/api/**/fixtures"
     ]
   },
   "formatter": {

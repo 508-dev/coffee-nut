@@ -1,0 +1,79 @@
+[
+  {
+    "name": "Pour Over",
+    "parameter_schema": {
+      "fields": ["dose_grams", "water_grams", "water_temp_c", "grinder", "grind_setting",
+                 "bloom_water_grams", "bloom_time_seconds", "total_time_seconds"],
+      "required": ["dose_grams", "water_grams"]
+    }
+  },
+  {
+    "name": "Espresso",
+    "parameter_schema": {
+      "fields": ["dose_grams", "yield_grams", "grinder", "grind_setting",
+                 "total_time_seconds", "pressure_bar", "water_temp_c"],
+      "required": ["dose_grams", "yield_grams"]
+    }
+  },
+  {
+    "name": "Moka Pot",
+    "parameter_schema": {
+      "fields": ["dose_grams", "water_grams", "grinder", "grind_setting",
+                 "water_temp_c", "total_time_seconds"],
+      "required": ["dose_grams", "water_grams"]
+    }
+  },
+  {
+    "name": "French Press",
+    "parameter_schema": {
+      "fields": ["dose_grams", "water_grams", "water_temp_c", "grinder", "grind_setting",
+                 "total_time_seconds"],
+      "required": ["dose_grams", "water_grams"]
+    }
+  },
+  {
+    "name": "AeroPress",
+    "parameter_schema": {
+      "fields": ["dose_grams", "water_grams", "water_temp_c", "grinder", "grind_setting",
+                 "bloom_time_seconds", "total_time_seconds"],
+      "required": ["dose_grams", "water_grams"]
+    }
+  },
+  {
+    "name": "Cold Brew",
+    "parameter_schema": {
+      "fields": ["dose_grams", "water_grams", "grinder", "grind_setting", "total_time_seconds"],
+      "required": ["dose_grams", "water_grams"]
+    }
+  },
+  {
+    "name": "Filter Drip",
+    "parameter_schema": {
+      "fields": ["dose_grams", "water_grams", "water_temp_c", "grinder", "grind_setting",
+                 "total_time_seconds"],
+      "required": ["dose_grams", "water_grams"]
+    }
+  },
+  {
+    "name": "Siphon",
+    "parameter_schema": {
+      "fields": ["dose_grams", "water_grams", "water_temp_c", "grinder", "grind_setting",
+                 "total_time_seconds"],
+      "required": ["dose_grams", "water_grams"]
+    }
+  },
+  {
+    "name": "Turkish",
+    "parameter_schema": {
+      "fields": ["dose_grams", "water_grams", "grinder", "grind_setting", "total_time_seconds"],
+      "required": ["dose_grams", "water_grams"]
+    }
+  },
+  {
+    "name": "Percolator",
+    "parameter_schema": {
+      "fields": ["dose_grams", "water_grams", "grinder", "grind_setting", "total_time_seconds"],
+      "required": ["dose_grams", "water_grams"]
+    }
+  }
+]
