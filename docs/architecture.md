@@ -3,10 +3,10 @@
 A web application for coffee enthusiasts to record the beans they buy and the
 brews they make with them, and to share individual brews publicly by link.
 
-Status: **partially implemented**. Steps 1–4 of §12 are built and green
-(`./scripts/check-all.sh`): the toolchain, `common`, `accounts`, the full auth
-surface, and `catalog` with its seed data. Everything from §12 step 5 onward is
-still design. Where this document and the code differ,
+Status: **partially implemented**. Steps 1–5 of §12 are built and green
+(`./scripts/check-all.sh`): the toolchain, `common`, `accounts`, the auth
+surface, `catalog` with its seed data, and the `Coffee`/`Bag`/`Brew` domain with
+full CRUD. Only sharing (§5.4) and the web feature screens remain. Where this document and the code differ,
 the code wins — say so here rather than letting them drift.
 
 ## 1. Decisions
@@ -344,9 +344,13 @@ and expensive to retrofit.
   }
   ```
 
-- **`?expand=`** for nested reads. `GET /brews/?expand=bag.coffee.roaster`
-  returns nested objects instead of ids, so a mobile list view is one request
-  instead of N. Default responses return ids only.
+- **`?expand=`** for nested reads, comma-separated and dotted, e.g.
+  `?expand=bag.coffee.roaster,method`. A mobile list view becomes one request
+  instead of N. Capped at four levels. Unknown paths are rejected with a 400
+  rather than silently ignored, so a typo surfaces instead of quietly returning
+  ids. Default responses return ids only, and expansion is read-only: writes
+  always take an id, because accepting a nested object on write would bypass
+  the scoped relation fields in §6.
 
 ### 5.2 Authentication
 
@@ -630,15 +634,17 @@ Not blocking the scaffold; each has a stated default so work can proceed.
    throttling.
 4. **Done.** `catalog`: reference models, seed fixtures, `seed_catalog`
    management command, and the ranked typeahead endpoint.
-5. `coffee` and `brewing`: `Coffee`, `Bag`, `Brew`, full CRUD.
+5. **Done.** `coffee` and `brewing`: `Coffee`, `Bag`, `Brew`, full CRUD,
+   `?expand=`, method-aware validation, and the brief's example flow covered
+   end to end by `tests/test_brewing.py::TestBriefWalkthrough`.
 6. `sharing`: share token issue/revoke and the public read view.
 7. SvelteKit shell: auth store, fetch wrapper, generated types, route skeleton.
 8. Web feature screens, ending with the public share page.
 
-Steps 1–4 carried nearly all the architectural risk and are complete.
+Steps 1–5 carried nearly all the architectural risk and are complete.
 Everything after them is largely mechanical.
 
-The tenancy sweep from step 2 is now live: `Grinder` is the first owned
-viewset on the router, so the sweep runs against it rather than skipping. It was
-verified by temporarily removing `GrinderViewSet`'s scoping, which failed the
-sweep with the expected diagnostic.
+The tenancy sweep from step 2 is live and now covers `grinders`, `coffees`,
+`bags`, and `brews` — picked up automatically as each was registered, with no
+list to maintain. It was verified by temporarily removing a viewset's scoping,
+which failed the sweep with the expected diagnostic rather than passing.

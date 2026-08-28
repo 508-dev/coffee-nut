@@ -7,7 +7,9 @@ rather than waiting for someone to notice.
 
 from rest_framework.routers import DefaultRouter
 
+from coffeenut.brewing import views as brewing_views
 from coffeenut.catalog import views as catalog_views
+from coffeenut.coffee import views as coffee_views
 
 api_router = DefaultRouter()
 
@@ -24,7 +26,6 @@ api_router.register("tasting-notes", catalog_views.TastingNoteViewSet, basename=
 # User-owned resources.
 api_router.register("grinders", catalog_views.GrinderViewSet, basename="grinder")
 
-# Domain apps register here as they land:
-#   api_router.register("coffees", CoffeeViewSet, basename="coffee")
-#   api_router.register("bags", BagViewSet, basename="bag")
-#   api_router.register("brews", BrewViewSet, basename="brew")
+api_router.register("coffees", coffee_views.CoffeeViewSet, basename="coffee")
+api_router.register("bags", coffee_views.BagViewSet, basename="bag")
+api_router.register("brews", brewing_views.BrewViewSet, basename="brew")
