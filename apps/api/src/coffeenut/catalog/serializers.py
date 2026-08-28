@@ -1,5 +1,6 @@
-from typing import Any
+from typing import Any, cast
 
+from django.utils.text import slugify
 from rest_framework import serializers
 
 from coffeenut.common.fields import ReferencePrimaryKeyRelatedField
@@ -24,6 +25,31 @@ REFERENCE_READ_ONLY = ["id", "slug", "is_canonical", "created_at", "updated_at"]
 
 class ReferenceSerializer(serializers.ModelSerializer):
     is_canonical = serializers.BooleanField(read_only=True)
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        """Reject a name the caller has already used.
+
+        The slug is derived in ``Model.save()``, so it never appears in the
+        serializer's input and DRF's uniqueness validators cannot see it. Without
+        this the partial unique index fires instead and the client gets a 500.
+
+        Only the caller's own rows are considered: canonical and custom names
+        live in separate namespaces, so "Onyx Coffee Lab" existing canonically
+        must not stop a user creating their own.
+        """
+        name = attrs.get("name") or getattr(self.instance, "name", None)
+        if not name:
+            return attrs
+
+        user = self.context["request"].user
+        # Meta.model is typed as a bare model class; the manager is not on the stub.
+        model = cast(Any, self.Meta.model)
+        clashes = model.objects.filter(owner=user, slug=slugify(name)[:220])
+        if self.instance is not None:
+            clashes = clashes.exclude(pk=self.instance.pk)
+        if clashes.exists():
+            raise serializers.ValidationError({"name": "You already have an entry with this name."})
+        return attrs
 
     def create(self, validated_data: dict[str, Any]) -> Any:
         validated_data.pop("owner", None)

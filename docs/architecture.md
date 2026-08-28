@@ -3,10 +3,11 @@
 A web application for coffee enthusiasts to record the beans they buy and the
 brews they make with them, and to share individual brews publicly by link.
 
-Status: **partially implemented**. Steps 1–5 of §12 are built and green
+Status: **backend complete**. Steps 1–6 of §12 are built and green
 (`./scripts/check-all.sh`): the toolchain, `common`, `accounts`, the auth
-surface, `catalog` with its seed data, and the `Coffee`/`Bag`/`Brew` domain with
-full CRUD. Only sharing (§5.4) and the web feature screens remain. Where this document and the code differ,
+surface, `catalog` with its seed data, the `Coffee`/`Bag`/`Brew` domain, and
+public sharing. Every flow in the brief is covered by tests. Only the web
+feature screens (§12 steps 7–8) remain. Where this document and the code differ,
 the code wins — say so here rather than letting them drift.
 
 ## 1. Decisions
@@ -427,6 +428,14 @@ Three rules on the public view, all of them load-bearing:
    confirms a token once existed.
 3. **Throttled and `X-Robots-Tag: noindex`.** Unlisted means unlisted; an
    unguessable URL should not arrive in a search index.
+4. **No authentication classes at all**, not merely `AllowAny`. A logged-out
+   browser may still send a stale `Authorization` header, and that must not
+   turn a public page into a 401.
+
+`tests/test_sharing.py::TestNoLeaks` asserts the negative space directly — no
+owner email or id, no price or currency, no private bag notes, no internal ids
+— and pins the published field set, so adding a field to `Brew` cannot quietly
+publish it.
 
 The SPA serves this at `/s/{token}` with no auth guard and no token refresh
 attempt.
@@ -637,11 +646,12 @@ Not blocking the scaffold; each has a stated default so work can proceed.
 5. **Done.** `coffee` and `brewing`: `Coffee`, `Bag`, `Brew`, full CRUD,
    `?expand=`, method-aware validation, and the brief's example flow covered
    end to end by `tests/test_brewing.py::TestBriefWalkthrough`.
-6. `sharing`: share token issue/revoke and the public read view.
+6. **Done.** `sharing`: share token issue, rotate, and revoke, plus the
+   anonymous read view behind an allowlist serializer.
 7. SvelteKit shell: auth store, fetch wrapper, generated types, route skeleton.
 8. Web feature screens, ending with the public share page.
 
-Steps 1–5 carried nearly all the architectural risk and are complete.
+Steps 1–6 carried nearly all the architectural risk and are complete.
 Everything after them is largely mechanical.
 
 The tenancy sweep from step 2 is live and now covers `grinders`, `coffees`,

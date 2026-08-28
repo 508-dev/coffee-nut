@@ -85,6 +85,24 @@ class TestWriting:
         assert response.status_code == 403
         assert Roaster.objects.filter(pk=canonical.pk).exists()
 
+    def test_duplicate_name_is_a_field_error_not_a_500(self, as_user, alice):
+        """The slug is derived in Model.save(), so DRF's uniqueness validators
+        never see it and the DB constraint fires instead."""
+        as_user(alice).post(reverse("roaster-list"), {"name": "Corner Cafe"})
+
+        response = as_user(alice).post(reverse("roaster-list"), {"name": "Corner Cafe"})
+
+        assert response.status_code == 400
+        assert any(e["field"] == "name" for e in response.data["errors"])
+
+    def test_a_name_matching_a_canonical_row_is_still_allowed(self, as_user, alice):
+        """Canonical and custom namespaces are separate by design."""
+        Roaster.objects.create(name="Onyx Coffee Lab")
+
+        response = as_user(alice).post(reverse("roaster-list"), {"name": "Onyx Coffee Lab"})
+
+        assert response.status_code == 201
+
     def test_own_rows_can_be_edited(self, as_user, alice):
         mine = Roaster.objects.create(name="Corner Cafe", owner=alice)
 

@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "coffeenut.catalog",
     "coffeenut.coffee",
     "coffeenut.brewing",
+    "coffeenut.sharing",
 ]
 
 MIDDLEWARE = [
