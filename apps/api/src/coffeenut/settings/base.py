@@ -148,7 +148,10 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,
     "ALGORITHM": "HS256",
-    "SIGNING_KEY": env("JWT_SIGNING_KEY", default=SECRET_KEY),
+    # `or SECRET_KEY` rather than a default: .env ships JWT_SIGNING_KEY= as an
+    # empty string, which is *present*, so env() would return "" and hand PyJWT
+    # an empty HMAC key.
+    "SIGNING_KEY": env("JWT_SIGNING_KEY", default="") or SECRET_KEY,
     "AUTH_HEADER_TYPES": ("Bearer",),
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
@@ -183,9 +186,13 @@ CORS_ALLOW_CREDENTIALS = True
 
 # --- Application ------------------------------------------------------------
 
+# Where the SPA is served. Verification and password-reset emails link here
+# rather than to the API, because the user needs a page, not a JSON endpoint.
+PUBLIC_WEB_BASE_URL = env("PUBLIC_WEB_BASE_URL", default="http://127.0.0.1:8730")
+
 # Base URL the SPA serves share links from, used to build the copyable URL
 # returned by POST /api/v1/brews/{id}/share/.
-PUBLIC_SHARE_BASE_URL = env("PUBLIC_SHARE_BASE_URL", default="http://127.0.0.1:8730/s")
+PUBLIC_SHARE_BASE_URL = env("PUBLIC_SHARE_BASE_URL", default=f"{PUBLIC_WEB_BASE_URL}/s")
 
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="coffee-nut <noreply@localhost>")
 

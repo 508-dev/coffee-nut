@@ -3,9 +3,9 @@
 A web application for coffee enthusiasts to record the beans they buy and the
 brews they make with them, and to share individual brews publicly by link.
 
-Status: **partially implemented**. Steps 1–2 of §12 are built and green
-(`./scripts/check-all.sh`): the toolchain, `common`, and `accounts`. Everything
-from §12 step 3 onward is still design. Where this document and the code differ,
+Status: **partially implemented**. Steps 1–3 of §12 are built and green
+(`./scripts/check-all.sh`): the toolchain, `common`, `accounts`, and the full
+auth surface. Everything from §12 step 4 onward is still design. Where this document and the code differ,
 the code wins — say so here rather than letting them drift.
 
 ## 1. Decisions
@@ -104,7 +104,7 @@ class Visibility(models.TextChoices):
 
 class OwnedModel(models.Model):
     id           = UUIDField(primary_key=True, default=uuid4, editable=False)
-    owner        = ForeignKey(User, on_delete=CASCADE, related_name="+")
+    owner        = ForeignKey(User, on_delete=CASCADE, related_name="%(class)ss")
     visibility   = CharField(choices=Visibility, default=Visibility.PRIVATE)
     share_token  = UUIDField(null=True, blank=True, unique=True, db_index=True)
     created_at   = DateTimeField(auto_now_add=True)
@@ -154,7 +154,7 @@ class ReferenceModel(models.Model):
     slug        = SlugField(max_length=220)
     owner       = ForeignKey(User, null=True, blank=True, on_delete=CASCADE)
     source      = CharField(default="manual")   # manual | seed | <provider>
-    external_id = CharField(null=True, blank=True)
+    external_id = CharField(blank=True, default="")
     synced_at   = DateTimeField(null=True, blank=True)
     merged_into = ForeignKey("self", null=True, blank=True, on_delete=SET_NULL)
     created_at, updated_at
@@ -163,10 +163,10 @@ class ReferenceModel(models.Model):
         abstract = True
         constraints = [
             UniqueConstraint(fields=["slug"], condition=Q(owner__isnull=True),
-                             name="%(class)s_unique_canonical_slug"),
+                             name="%(class)s_canon_slug"),
             UniqueConstraint(fields=["owner", "slug"],
                              condition=Q(owner__isnull=False),
-                             name="%(class)s_unique_owned_slug"),
+                             name="%(class)s_owned_slug"),
         ]
 ```
 
@@ -355,6 +355,21 @@ and expensive to retrofit.
 | POST | `/auth/email/verify/` | Confirm address from emailed token. |
 | GET PATCH | `/auth/me/` | Current user + profile. |
 
+Two behaviours here are security decisions rather than conventions, and both are
+covered by tests:
+
+- **`/auth/password/reset/` always returns 204**, whether or not the address is
+  registered, and sends nothing when it is not. A 404 would turn the endpoint
+  into an account-existence oracle. `/auth/register/` does still report a
+  duplicate address — hiding it there would mean silently discarding a signup,
+  which is the worse trade.
+- **A bad `uid` and a bad `token` produce the identical error.** Distinguishing
+  them would let someone enumerate accounts through the reset link.
+
+Email verification and password reset use separate token generators whose hashes
+fold in the state they authorise (`email_verified_at`, the password hash), so
+each link is single-use and the two are not interchangeable.
+
 ### 5.3 Resources
 
 All owner-scoped. All support `updated_since`, cursor pagination, and `expand`.
@@ -439,13 +454,21 @@ days, `ROTATE_REFRESH_TOKENS = True`, `BLACKLIST_AFTER_ROTATION = True`.
 Token storage differs by client, which is the honest answer rather than a
 uniform-but-weak one:
 
-- **Web.** The access token lives in a JavaScript variable only — never
-  `localStorage`, which is readable by any XSS. The refresh token is set by the
-  server as `HttpOnly; Secure; SameSite=Lax`, so script cannot read it. The
-  refresh endpoint reads the cookie when present and the request body
-  otherwise.
-- **Native.** Both tokens go in the platform keystore (Keychain /
-  EncryptedSharedPreferences) and travel in the request body as usual.
+- **Web (the default).** The access token lives in a JavaScript variable only
+  — never `localStorage`, which is readable by any XSS. The refresh token is
+  set as `HttpOnly; Secure; SameSite=Lax`, scoped to `path=/api/v1/auth/`, and
+  is **omitted from the response body entirely**. The refresh endpoint reads the
+  body first and falls back to the cookie.
+- **Native.** Opted into with the `X-Client: native` request header: the refresh
+  token comes back in the body and no cookie is set. Both tokens go in the
+  platform keystore (Keychain / EncryptedSharedPreferences).
+
+Cookie delivery is the default deliberately. A client that forgets the header
+gets the safer behaviour; the less safe mode has to be asked for by name.
+
+Changing or resetting a password blacklists every outstanding refresh token for
+that user. Leaving old sessions alive after a suspected compromise would defeat
+the point of changing the password.
 
 The SPA's fetch wrapper retries once on 401 behind a single-flight lock, so ten
 concurrent requests trigger one refresh rather than ten rotations.
@@ -595,14 +618,16 @@ Not blocking the scaffold; each has a stated default so work can proceed.
    `OwnedQuerySet`, `ReferenceModel`, scoped relation fields, permissions, error
    handler, pagination — plus the tenancy sweep, written before there was
    anything to regress.
-3. JWT auth endpoints and registration, with the cookie-based web refresh path.
+3. **Done.** JWT auth endpoints and registration, with the cookie-based web
+   refresh path, email verification, password reset, session revocation, and
+   throttling.
 4. `catalog`: reference models, seed fixtures, typeahead endpoint.
 5. `coffee` and `brewing`: `Coffee`, `Bag`, `Brew`, full CRUD.
 6. `sharing`: share token issue/revoke and the public read view.
 7. SvelteKit shell: auth store, fetch wrapper, generated types, route skeleton.
 8. Web feature screens, ending with the public share page.
 
-Steps 1–2 carried nearly all the architectural risk and are complete.
+Steps 1–3 carried nearly all the architectural risk and are complete.
 Everything after them is largely mechanical.
 
 The tenancy sweep in step 2 currently reports itself as skipped rather than

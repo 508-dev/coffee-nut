@@ -47,6 +47,14 @@ eval "$(./scripts/worktree-ports.sh export)"
 export WEB_HOST="${WEB_HOST:-127.0.0.1}"
 export API_HOST="${API_HOST:-127.0.0.1}"
 
+# Derive the public URLs from this worktree's ports. Without these, emailed
+# verification and reset links, share URLs, and the SPA's API base all fall back
+# to the defaults in .env and point at another worktree.
+export PUBLIC_WEB_BASE_URL="${PUBLIC_WEB_BASE_URL:-http://${WEB_HOST}:${WEB_PORT}}"
+export PUBLIC_SHARE_BASE_URL="${PUBLIC_SHARE_BASE_URL:-${PUBLIC_WEB_BASE_URL}/s}"
+export PUBLIC_API_BASE_URL="${PUBLIC_API_BASE_URL:-http://${API_HOST}:${API_PORT}/api/v1}"
+export CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-${PUBLIC_WEB_BASE_URL}}"
+
 port_listener_pids() {
   port="$1"
   if ! command -v lsof >/dev/null 2>&1; then

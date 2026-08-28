@@ -60,3 +60,17 @@ def test_envelope_shape_is_stable():
 def test_unhandled_exceptions_are_not_swallowed():
     """A programming error must become a 500, not a tidy client error."""
     assert exception_handler(RuntimeError("boom"), {}) is None
+
+
+def test_plain_api_exceptions_have_no_field():
+    """DRF wraps the message as {"detail": ...}. Reporting a field literally
+    named "detail" would be meaningless to a client rendering form errors."""
+    data = _handle(NotFound())
+
+    assert data["errors"][0]["field"] is None
+
+
+def test_a_nested_field_named_detail_is_still_a_field():
+    data = _handle(ValidationError({"bag": {"detail": ["Required."]}}))
+
+    assert data["errors"][0]["field"] == "bag.detail"

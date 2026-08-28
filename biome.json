@@ -13,7 +13,9 @@
       "!**/build",
       "!**/node_modules",
       "!**/staticfiles",
-      "!bun.lock"
+      "!bun.lock",
+      "!**/.opencode",
+      "!opencode.json"
     ]
   },
   "formatter": {

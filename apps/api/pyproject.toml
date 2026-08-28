@@ -12,6 +12,9 @@ dependencies = [
   "django-filter>=24.3",
   "django-environ>=0.12,<1.0",
   "psycopg[binary]>=3.2,<4.0",
+  # Required by django.core.cache.backends.redis.RedisCache, which backs
+  # throttling. Django ships the backend but not a client.
+  "redis>=5.0,<7.0",
 ]
 
 [build-system]

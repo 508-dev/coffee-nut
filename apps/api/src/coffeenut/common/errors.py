@@ -14,6 +14,9 @@ from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 
 NON_FIELD = "non_field_errors"
+# DRF wraps a plain APIException detail as {"detail": ...}. That is the
+# message, not a field named "detail", so it must not be reported as one.
+DETAIL = "detail"
 
 
 def _flatten(detail: Any, prefix: str = "") -> list[dict[str, Any]]:
@@ -26,8 +29,11 @@ def _flatten(detail: Any, prefix: str = "") -> list[dict[str, Any]]:
         errors: list[dict[str, Any]] = []
         for key, value in detail.items():
             field = str(key)
+            # "detail" means "no field" only at the top level; nested, it may
+            # genuinely be a serializer field with that name.
+            is_non_field = field == NON_FIELD or (field == DETAIL and not prefix)
             path = field if not prefix else f"{prefix}.{field}"
-            errors.extend(_flatten(value, "" if field == NON_FIELD else path))
+            errors.extend(_flatten(value, "" if is_non_field else path))
         return errors
 
     if isinstance(detail, list):
