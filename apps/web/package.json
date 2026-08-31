@@ -8,8 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "test": "vitest run",
-    "generate:api": "openapi-typescript $PUBLIC_API_SCHEMA_URL -o src/lib/api/schema.d.ts"
+    "test": "vitest run"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.8",

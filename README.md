@@ -1,213 +1,230 @@
-# 508 Devkit
+# coffee-nut
 
-Last reviewed: 2026-07-05
+A brewing journal for coffee enthusiasts. Record the bags you buy, log every
+brew you make with them, and share a single brew with anyone by link.
 
-Opinionated sane defaults and conventions for software projects.
+- **API** — Django 5.2 LTS + Django REST Framework on PostgreSQL 17.
+- **Web** — SvelteKit as a static SPA, no server runtime to deploy.
+- **Also** — the REST API is the only interface. Native Android and iOS clients
+  are planned, and the web app gets no privileged access.
 
-This is not a scaffolding CLI. It is a reference repo and GitHub template that
-gives agents and humans a shared baseline for how new projects should be shaped:
-repository layout, local development, dependency safety, CI, agent instructions,
-operational memory, and documentation. It comes from 508.dev practice, but it
-is meant to be useful outside 508.dev too.
+See [`docs/architecture.md`](docs/architecture.md) for the data model, API
+surface, and the reasoning behind both.
 
-Point an agent at this repo when starting or normalizing a project. The agent should inspect the target repo, ask clarifying questions when the product or stack is ambiguous, and then copy or adapt only the conventions that fit.
+## What it does
 
-## What It Captures
+- **Coffees and bags.** A *coffee* is the product a roaster sells; a *bag* is
+  one purchase of it. Buy the same lot twice and you get one coffee with two
+  bags, so you can compare across purchases.
+- **Brews.** Log dose, water, temperature, grind, and timings against a bag.
+  The form adapts to the method — espresso asks for a yield, pour over asks
+  about the bloom — driven by data rather than hard-coded forms.
+- **Autofill.** Countries, regions, farms, roasters, varietals, processes, brew
+  methods, and tasting notes come pre-seeded. Anything missing you can add, and
+  it stays private to you.
+- **Sharing.** Tick one box on a brew to get an unguessable link that anyone can
+  open without an account. Untick it and the link dies immediately.
 
-- Agent-native instructions for Codex, Claude Code, Cursor, and future agents.
-- Gitignored workspace-local `.context/` conventions for Conductor and agents.
-- Bun and pnpm as first-class JavaScript package manager examples, with Bun
-  shown first.
-- Optional `uv` Python workspace conventions.
-- Optional Ruby/Rails/Rack conventions.
-- Dependency cooldowns for Bun, pnpm, uv, and Bundler.
-- Host-run development services.
-- Docker Compose examples for local infrastructure such as databases and
-  caches.
-- Deterministic worktree ports.
-- Framework-neutral frontend conventions.
-- `.worktreeinclude` for copying local-only env files into sibling worktrees.
-- `.dockerignore` for small, secret-safe Docker build contexts.
-- GitHub PR, issue, and CI hygiene.
-- Security scanning and dependency update policy.
-- Pydantic settings/schema and Alembic migration examples for Python services.
-- Drizzle ORM examples for TypeScript services.
-- Ruff, MyPy, Pytest, Biome, and Vitest.
-- Optional SOPS documentation without forcing SOPS into every repo.
+## Requirements
 
-## Quickstart
+| Tool | Version | Why |
+| --- | --- | --- |
+| [uv](https://docs.astral.sh/uv/) | ≥ 0.9.17 | Python toolchain. The dependency cooldown syntax needs it. |
+| [Bun](https://bun.sh/) | 1.4.0 | JavaScript toolchain. |
+| Docker + Compose | any recent | Runs PostgreSQL and Redis locally. |
+| Python | 3.13 | Installed automatically by uv; see `.python-version`. |
 
-### Create A New Repository
+Application processes run on your host, and only the databases run in
+containers. That keeps reloads fast and stack traces readable.
 
-Use GitHub's `Use this template` button to create a new repository from
-`508-dev/508-devkit`.
-
-GitHub templates copy the default-branch file tree. Treat the generated
-repository as a bootstrap workspace: the first PR should select the root
-hygiene files, stacks, extras, docs, and workflows that fit the product, then
-delete the rest.
-
-Recommended first prompt in the generated repo:
-
-```text
-This repository was generated from 508 Devkit. Do a template selection pass:
-use MANIFEST.md to produce a selection report before editing, covering every
-top-level path in the devkit and this repo with adopt/adapt/skip/delete/defer
-and a one-line reason. Then keep only the root hygiene, stacks, extras, docs,
-and workflows that fit this project, delete the rest, rename all devkit/example
-identifiers, and run the narrowest relevant checks.
-```
-
-See `docs/github-template.md` for the cleanup checklist.
-
-### Normalize An Existing Repository
-
-Use the repo directly as a reference:
-
-```text
-Use https://github.com/508-dev/508-devkit or a local checkout of it as the
-project bootstrap reference.
-Inspect my target repo, ask any necessary questions, then apply the relevant conventions.
-```
-
-Or install/use the bundled agent skill from this repo:
-
-```text
-Install the skill from https://raw.githubusercontent.com/508-dev/508-devkit/main/skills/508-devkit/SKILL.md
-or from skills/508-devkit/SKILL.md in a local checkout.
-Run it as /508-devkit, /bootstrap-project, or whatever command name your agent client assigns.
-```
-
-Expected agent behavior:
-
-- Inspect the target repo before editing.
-- Use `MANIFEST.md` to produce a selection report before editing. Cover every
-  top-level path in the devkit and the target repo with an adopt, adapt, skip,
-  delete, or defer decision and a one-line reason.
-- Ask about product shape, deployment target, data stores, and language/runtime choices when those are unclear.
-- Automatically pick up existing conventions when the repo already has them.
-- Prefer the devkit defaults for new projects unless there is a clear reason to choose a stack or extra.
-- Run the narrowest relevant checks before calling the bootstrap complete.
-
-For this repo itself:
+## Quick start
 
 ```bash
-bun install --frozen-lockfile
-./scripts/check-all.sh
+git clone <this repo> && cd coffee-nut
+
+cp .env.example .env          # dev.sh does this for you if you forget
+uv sync                       # Python dependencies
+bun install                   # JavaScript dependencies
+
 ./scripts/dev.sh
 ```
+
+`dev.sh` brings up Postgres and Redis, applies migrations, seeds the reference
+data, then starts Django and Vite together. It prints the URLs it chose:
+
+```
+  API       http://127.0.0.1:8720  (schema at /api/docs/)
+  Web       http://127.0.0.1:8730
+  Postgres  127.0.0.1:8740
+  Redis     127.0.0.1:8750
+```
+
+Your ports will differ. They are derived from the worktree's path so that
+several checkouts of this repo can run at once without colliding. Run
+`./scripts/worktree-ports.sh env` to print the ones assigned to you.
+
+Open the web URL, register an account, and add your first coffee. Verification
+and password-reset emails print to the terminal running `dev.sh`; there is no
+mail provider configured for local development.
+
+To create an admin user for `/admin/`:
+
+```bash
+uv run python apps/api/manage.py createsuperuser
+```
+
+## Everyday commands
+
+```bash
+./scripts/dev.sh              # the whole stack
+./scripts/dev.sh --help       # options, including --reclaim-ports
+
+./scripts/lint.sh             # ruff + biome
+./scripts/typecheck.sh        # mypy + svelte-check
+./scripts/test.sh             # pytest + vitest
+./scripts/format.sh           # apply formatting
+
+./scripts/check-all.sh        # everything CI runs, in the same order
+```
+
+`check-all.sh` is the one that matters before pushing. It also catches the two
+things easiest to forget: a model change without a migration, and API types
+that have drifted from the schema.
+
+Narrower loops:
+
+```bash
+uv run pytest apps/api/tests/test_brewing.py -q     # one test file
+uv run pytest -k tenancy                            # by name
+bun run --cwd apps/web test                         # web tests only
+```
+
+### Database and reference data
+
+```bash
+uv run python apps/api/manage.py makemigrations
+uv run python apps/api/manage.py migrate
+uv run python apps/api/manage.py seed_catalog       # idempotent
+```
+
+`seed_catalog` loads ~400 canonical rows: every ISO country, major growing
+regions, varietals, processes, brew methods, and tasting notes. It matches
+existing rows on their slug and updates in place, so re-running it never
+duplicates anything and never breaks a foreign key your data already holds.
+`dev.sh` runs it on every start.
+
+Roasters and producers ship deliberately empty. A half-complete canonical list
+is worse than none — people trust it, fail to find their roaster, and create a
+duplicate anyway. Add your own; promotion to canonical happens later, once we
+can see which names actually recur.
+
+### API schema and generated types
+
+The SPA's types are generated from the OpenAPI schema and committed:
+
+```bash
+./scripts/generate-api-types.sh              # regenerate after an API change
+./scripts/generate-api-types.sh --check      # verify they are in sync
+```
+
+`check-all.sh` and CI run `--check`. If it fails, the frontend is typechecking
+against an API that no longer exists.
+
+Browse the API at `/api/docs/` while `dev.sh` is running, or fetch the raw
+schema from `/api/schema/`.
 
 ## Layout
 
 ```text
-AGENTS.md      Canonical agent operating instructions
-MANIFEST.md    File inventory and template-selection checklist
-DECISIONS.md   Decision authority for devkit topology and policy
-docs           Durable project documentation
-extras         Optional workflow, deployment, and support add-ons
-scripts        Stable human/agent entrypoints
-skills         Optional project-local agent skills
-stacks         Language/runtime convention packs
+apps/api/                 Django project
+  manage.py
+  src/coffeenut/
+    settings/             base, local, test, production
+    common/               abstract models, tenancy, errors, pagination, expand
+    accounts/             custom User, Profile, auth endpoints
+    catalog/              reference data + seed fixtures
+    coffee/               Coffee, Bag
+    brewing/              Brew
+    sharing/              public read-only share views
+  tests/
+
+apps/web/                 SvelteKit SPA (static)
+  src/routes/             file-based routes, incl. the public /s/[token] page
+  src/lib/api/            generated types + fetch wrapper
+  src/lib/components/     reference picker, method-aware brew fields
+
+scripts/                  dev, lint, typecheck, test, format, check-all
+docs/                     architecture and runbooks
+compose.yml               Postgres + Redis
 ```
 
-## Read Next
+## Things worth knowing before you change code
 
-1. Read `DECISIONS.md`.
-2. Read `MANIFEST.md`.
-3. Read `docs/github-template.md` when starting from GitHub's template button.
-4. Read `docs/tooling.md`.
-5. Read `docs/frontend.md`.
-6. Read `docs/pattern-report.md` and `docs/template-proposal.md` when you need
-   devkit design history.
-7. Copy `.env.example` to `.env`.
-8. Run `./scripts/worktree-ports.sh env`.
-9. Run `./scripts/docker-compose.sh up -d postgres redis`.
-10. Run `./scripts/dev.sh`.
+A few rules are load-bearing, and breaking them is how user data leaks.
+[`AGENTS.md`](AGENTS.md) has the full list; the short version:
 
-The port helper's `env` command is the print-only URL/port mode. It prints
-`WEB_URL` first, followed by `WEB_PORT` and the rest of the assigned worktree
-ports, so coding orchestrators that scan startup output for a URL open the web
-surface first.
+- **Never filter on `owner` yourself.** Read through
+  `Model.objects.visible_to(user)` and write through `owned_by(user)`. That
+  single chokepoint is where tenancy is decided.
+- **Owned viewsets extend `OwnedModelViewSet`** and register on
+  `coffeenut.api_router`. A test walks that registry and fails if a new endpoint
+  is missing owner scoping, so you do not have to remember to add it to a list.
+- **Foreign keys use the scoped relation fields.** A plain
+  `PrimaryKeyRelatedField` will happily accept another user's row.
+- **Unauthorised access returns 404, not 403.** A 403 confirms the id exists.
+- **The public share view has its own serializer**, an explicit allowlist. Never
+  the authenticated one with fields excluded.
+- **Model changes need a migration in the same commit.**
 
-If a stale same-worktree dev process is still holding the web port, rerun with:
+## Testing
+
+Tests run against real PostgreSQL, never SQLite. The schema uses `CHECK`
+constraints and partial unique indexes that SQLite models differently, so
+SQLite would pass things production rejects. `./scripts/test.sh` starts the
+container for you.
+
+Worth knowing about the suite:
+
+- `tests/test_tenancy.py` walks the API router and asserts every owned resource
+  hides other users' rows.
+- `tests/test_sharing.py::TestNoLeaks` asserts the *absence* of private fields
+  from public payloads and pins the published field set.
+- `tests/test_brewing.py::TestBriefWalkthrough` runs the whole product story end
+  to end: buy a bag, brew it, list the bag's brews, share it.
+- `tests/test_settings_contract.py` covers things only true outside the test
+  suite, such as the production cache backend being importable.
+
+## Configuration
+
+`.env.example` is the contract; copy it to `.env`. Every value has a
+local-safe default, so an unedited copy works.
+
+Ports left commented out are derived from the worktree path. Set them only if
+you need fixed values.
+
+Before deploying anywhere, generate a real secret:
 
 ```bash
-./scripts/dev.sh --reclaim-ports
+uv run python -c "import secrets; print(secrets.token_urlsafe(64))"
 ```
 
-Port reclaim is opt-in and intentionally narrow: the script checks the listener
-with `lsof` and refuses to kill it unless the process chain looks like this
-worktree's own JS dev server.
+## Documentation
 
-## Worktree And Docker Hygiene
+| Document | What it covers |
+| --- | --- |
+| [`docs/architecture.md`](docs/architecture.md) | Data model, API surface, auth, permissions, frontend. Start here. |
+| [`docs/development.md`](docs/development.md) | Local development runbook and troubleshooting. |
+| [`DECISIONS.md`](DECISIONS.md) | Standing decisions and why they were made. |
+| [`AGENTS.md`](AGENTS.md) | Operating instructions for coding agents. |
+| [`docs/deployment.md`](docs/deployment.md) | Deployment notes. No target chosen yet. |
 
-Keep `.worktreeinclude` as a short allowlist of ignored local files that should follow a developer into new sibling worktrees. Typical entries are `.env`, `.env.local`, and `.sops.yaml`; never include generated directories or large state.
+## Status
 
-Keep `.dockerignore` broad enough to exclude VCS metadata, agent scratch state, dependencies, caches, logs, and secrets from Docker build contexts. Make exceptions only for committed templates such as `.env.example`.
+Feature-complete against the original brief and fully tested, but not yet
+deployed anywhere. Open questions are tracked in
+[`docs/architecture.md` §11](docs/architecture.md): transactional email
+provider, photo storage, multi-currency handling, and the deployment target.
 
-Do not commit `.context/`. Conductor creates `.context/` as workspace-local
-agent scratch. Durable project knowledge belongs in normal docs such as
-`docs/tooling.md`, `docs/development.md`, `docs/pattern-report.md`, or
-`README.md`.
+## License
 
-## Package Manager Policy
-
-Bun is shown first because it is the author's preference and keeps small
-projects simple, but it is not a universal requirement.
-
-pnpm is first-class for teams or workspaces that already prefer it, need its
-monorepo behavior, or want the broader pnpm ecosystem. If using pnpm, add
-`pnpm-workspace.yaml`, set `minimumReleaseAge: 10080`, and change CI install
-commands to `pnpm install --frozen-lockfile`.
-
-## Pick-And-Choose Stacks And Extras
-
-This repository intentionally includes files that conflict with each other. It
-is a template source, not an installable preset or final generated app.
-
-- `stacks/typescript/`: framework-neutral TypeScript conventions, Drizzle
-  examples, Biome, Vitest.
-- `stacks/python/`: optional Python API/shared-package workspace.
-- `stacks/ruby/`: optional Ruby/Rails/Rack conventions with Bundler cooldown
-  guidance.
-- `stacks/typescript/pnpm/`: pnpm root files and CI fragment for larger TypeScript workspaces.
-- `extras/dev-scripts/`: JS-first script variants and JS implementations of helper scripts.
-- `extras/dockerfiles/`: opt-in Dockerfile examples for deployment parity.
-- `extras/devcontainer/`: opt-in dev container example.
-- `extras/object-storage/`: very opt-in MinIO Compose example for projects
-  that need local S3-compatible storage.
-- `extras/github/`: CODEOWNERS and discussion templates that need project-specific owners or support policy.
-- `extras/todo-to-issue/`: opt-in workflow for turning TODO comments into GitHub issues.
-- `.sops.yaml.example`: optional SOPS starter only for repos that need encrypted files.
-
-Keep root defaults for most new projects: shell wrappers, shell worktree ports,
-and example Compose-managed infra. Select language/runtime stacks such as
-`stacks/typescript/`, `stacks/python/`, or `stacks/ruby/` based on the target
-project. Treat stack files as conventions to adapt, not product code to copy
-blindly. If this repo was used through GitHub's template button, do the same
-selection and pruning before feature work.
-
-## Agent Notes
-
-- Never copy the whole repository into a target project.
-- A GitHub-generated repo starts with the whole file tree by design; make the
-  first project PR a template selection pass that removes irrelevant stacks,
-  extras, workflows, and docs.
-- Start with root hygiene files, then select only the stacks and extras that
-  match the target repo.
-- Treat `stacks/` as peer language/runtime convention packs. TypeScript and
-  Python are examples, not universal defaults. Ruby is available as an
-  opt-in convention pack when the target repo actually uses Ruby.
-- Treat `extras/` as opt-in workflows or deployment helpers that may require
-  repo settings, real owners, or team process.
-- Keep `.context/` gitignored. Promote durable learnings into tracked docs
-  instead of committing agent scratch.
-- Keep worktree port helpers generic. If a workspace orchestrator exposes a
-  reserved port or port block, map it to `WORKTREE_PRIMARY_PORT` or
-  `WORKTREE_PORT_BLOCK_START` outside the helper.
-
-## Skill Interface
-
-The repository is the source of truth. The downloadable skill in `skills/508-devkit/SKILL.md` is the agent-facing interface that explains how to apply these files to a target repo.
-
-Task-shaped skills in `skills/*/SKILL.md` capture repeatable workflows such as migration creation, service creation, context promotion, and CI triage.
+See [`LICENSE`](LICENSE).

@@ -20,12 +20,12 @@ without editing .env. See ./scripts/worktree-ports.sh env.
 Options:
   --reclaim-ports      Stop this worktree's own leftover api/web process if it
                        still holds its port. Refuses to touch anything else.
-  --no-reclaim-ports   Disable even when DEVKIT_RECLAIM_PORTS=1.
+  --no-reclaim-ports   Disable even when COFFEENUT_RECLAIM_PORTS=1.
   --help               Show this help.
 USAGE
 }
 
-RECLAIM_PORTS="${DEVKIT_RECLAIM_PORTS:-0}"
+RECLAIM_PORTS="${COFFEENUT_RECLAIM_PORTS:-0}"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --reclaim-ports) RECLAIM_PORTS=1 ;;

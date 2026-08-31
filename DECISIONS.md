@@ -1,85 +1,276 @@
-# 508 Devkit Decisions
+# coffee-nut Decisions
 
-Last reviewed: 2026-06-03
+Standing decisions and why they were made. `docs/architecture.md` describes
+*what* the system is; this file records *why* it is that way, so a future change
+can disagree deliberately rather than by accident.
 
-This is the constitution for the devkit. Use it as the decision authority; use files in this repo as examples or frozen primitives according to the decision below.
+Each entry says when deviating is reasonable. None of them are sacred, but the
+tenancy ones are close.
 
-## Apply The Gold/Filler Test
+---
 
-Decision: keep and test files that agents would not reliably reproduce correctly without this repo. Treat ordinary app code as disposable examples.
+## Django REST Framework, not django-ninja
 
-Why: agents can generate plausible FastAPI handlers, workers, and frontend apps. They are less reliable at reproducing devkit-specific topology, safety policy, worktree behavior, and operational memory conventions.
+**Decision:** DRF for the API layer.
 
-Deviate when: a real target repo needs product code. Generate it for that repo instead of copying placeholder app code from the devkit.
+**Why:** mature permission and serializer primitives, and the largest body of
+documentation and prior art. Three clients will consume this API over its life;
+the boring choice is the right one. OpenAPI comes from drf-spectacular.
 
-## Dependency Cooldowns
+**Deviate when:** never casually. Mixing frameworks in one project costs more
+than either choice saves.
 
-Decision: use dependency cooldowns in every package manager that supports them.
+## Django 5.2 LTS, not the latest release
 
-Why: new package versions are a supply-chain risk window. The exact cooldowns are non-obvious and should converge across repos.
+**Decision:** pin to the 5.2 LTS line.
 
-Deviate when: a security fix or production incident requires an immediate update. Document the exception in the PR.
+**Why:** security support into 2028, and the whole surrounding ecosystem —
+DRF, simplejwt, drf-spectacular, and the type stubs — is proven against it.
+Stub packages in particular lag new Django majors.
 
-## Locked Installs
+**Deviate when:** a needed feature only exists in a newer release, and the
+dependency set resolves cleanly against it.
 
-Decision: commit lockfiles and use frozen or locked installs in CI.
+## One tenancy chokepoint
 
-Why: agents and humans need reproducible dependency resolution.
+**Decision:** all user-owned rows are reached through
+`OwnedQuerySet.visible_to(user)` for reads and `owned_by(user)` for writes.
+Nothing else in the codebase filters on `owner`.
 
-Deviate when: a repo is intentionally a library template without a runnable dependency graph. Document why no lockfile is committed.
+**Why:** this is the single most important structural decision in the schema.
+It is what makes "add social features later" a change to one method instead of
+an audit of every endpoint, and it means tenancy correctness is reviewable in
+one place rather than distributed across every viewset.
 
-## Bun First, pnpm First-Class
+`tests/test_tenancy.py` walks the router registry rather than a hand-maintained
+list, so a new endpoint that forgets scoping fails CI without anyone
+remembering to add it.
 
-Decision: show Bun first for JavaScript workspaces while keeping pnpm first-class for teams, repos, or large workspaces that prefer pnpm-specific monorepo behavior.
+**Deviate when:** you have a genuinely different access model. Then change
+`visible_to`, not its callers.
 
-Why: Bun is fast and simple for greenfield repos, and the author prefers it. That preference should not imply pnpm is second-class or wrong for new projects.
+## 404, never 403, for another user's row
 
-Deviate when: the target repo already uses pnpm, npm, Yarn, or another package manager for a clear reason. Do not churn package managers during unrelated work.
+**Decision:** unauthorised access to an existing row returns 404. A
+client-supplied `owner` is ignored rather than rejected.
 
-## Frontend Framework Neutrality
+**Why:** a 403 confirms the id exists, and a rejection confirms a user id is
+real. Both are enumeration oracles. Absence leaks nothing.
 
-Decision: do not choose Next.js, Vite, TanStack Start, Astro, Expo, or any other frontend framework in root defaults.
+**Deviate when:** never, on user-owned resources.
 
-Why: frontend framework choice depends on product shape, deployment target, routing, rendering model, and team familiarity.
+## Public sharing uses an allowlist serializer
 
-Deviate when: the target repo has already chosen a framework or the user explicitly asks for one.
+**Decision:** the anonymous share view has its own serializer listing exactly
+what is public — not the authenticated serializer with fields excluded.
 
-## Host Apps, Compose Infra
+**Why:** someone will add a field to the private serializer one day. With an
+allowlist that field cannot leak by default; with exclusions it leaks until
+someone notices. The cost is remembering to add genuinely public fields, which
+is the safer direction to fail in.
 
-Decision: run app processes on the host and infrastructure through Docker Compose during local development.
+**Deviate when:** never. `tests/test_sharing.py::TestNoLeaks` enforces it.
 
-Why: host app processes are easier for agents to inspect and faster for reload loops. Compose still provides concrete examples for local infrastructure such as databases and caches.
+## JWT, with delivery that differs by client
 
-Deviate when: deployment parity, binary dependencies, or team policy require full-container development. Put that in docs and scripts explicitly.
+**Decision:** one JWT model for all clients. Browsers get the refresh token as
+an `HttpOnly` cookie and never see it in a response body; native clients opt in
+with `X-Client: native` and receive it in the body for the platform keystore.
+Cookie delivery is the default.
 
-## Deterministic Worktree Ports
+**Why:** a browser has no safe place to store a long-lived token, and anything
+script can read an XSS can steal. A native app does have one. Defaulting to
+cookies means a client that forgets the header gets the safer behaviour, not
+the weaker one.
 
-Decision: derive local ports from the absolute worktree path.
+**Deviate when:** a client genuinely cannot handle cookies. That is what the
+header is for.
 
-Why: sibling worktrees should run concurrently without hand-editing `.env` files.
+## Coffee and Bag are separate
 
-Deviate when: a platform assigns ports dynamically. Preserve the script for local development unless it is truly irrelevant.
+**Decision:** a `Coffee` is the product; a `Bag` is one purchase of it.
 
-## `.context/` Workspace Memory
+**Why:** buying the same lot twice should reuse one product identity, so
+"how did this year's harvest compare?" is a query rather than a guess.
+`roast_date` lives on `Bag` because freshness is a property of the physical bag
+and is the field most likely to differ between two purchases.
 
-Decision: keep `.context/` gitignored as workspace-local operational memory for humans and agents. Do not ship it as tracked template content.
+**Deviate when:** never — collapsing them loses information that cannot be
+recovered.
 
-Why: architecture notes, decisions, failures, runbooks, and summaries prevent repeated failed approaches and preserve local reasoning.
+## Brew parameters are columns, not a JSON blob
 
-Deviate when: information is durable, user-facing, or contributor-facing. Put that in README, docs, or official project documentation instead.
+**Decision:** method-specific brew parameters are real, nullable columns.
+`BrewMethod.parameter_schema` declares which apply and which are required.
 
-## GitHub Hygiene
+**Why:** three clients consume this API. A JSON blob is invisible to OpenAPI,
+unvalidatable at the database layer, and awkward to filter or aggregate on.
+Nearly every field applies to two or more methods, so the table is narrower
+than it first looks. The schema keeps the form method-aware while the contract
+stays typed, and adding a brew method remains a fixture change.
 
-Decision: include small issue/PR templates, least-privilege workflows, pinned action SHAs, and Renovate cooldown policy. Keep Gitleaks and Dependency Review as opt-in extras: Gitleaks can create noisy baseline findings, and Dependency Review depends on GitHub's dependency graph and is primarily vulnerability/license/change reporting rather than active supply-chain attack detection.
+**Deviate when:** a parameter is genuinely one-off or experimental. That is
+what the `extras` JSON field is for.
 
-Why: collaboration and security hygiene are broadly useful and easy to drift across repos.
+## Reference data is one table with a nullable owner
 
-Deviate when: a repo does not use GitHub or has a stronger existing platform policy.
+**Decision:** canonical rows (`owner IS NULL`) and users' private additions
+share a table, with `merged_into` as the promotion path.
 
-## Currency
+**Why:** foreign keys stay uniform — a `Coffee` points at a `Roaster` without
+caring which kind it is. Promoting a popular custom entry becomes a data change
+rather than a migration, and existing foreign keys keep resolving.
 
-Decision: the devkit owns topology and policy, not permanent version freshness.
+**Deviate when:** an entity is genuinely canonical-only, like `Country`. Then
+make it read-only at the API rather than splitting the table.
 
-Why: frozen files age. Agents should preserve the repo's decisions while verifying current tool versions, action SHAs, and API docs when applying the devkit to a target repo.
+## Roasters and producers ship empty
 
-Deviate when: working fully offline. In that case, copy the known-good pinned versions and document that currency was not verified.
+**Decision:** seed countries, regions, varietals, processes, brew methods, and
+tasting notes. Seed no roasters or producers.
+
+**Why:** a half-complete canonical list is worse than none. People trust it,
+fail to find their roaster, and create a duplicate anyway. Until we have done
+the sourcing, every roaster is a user row, and `merged_into` promotes them once
+we can see which names recur.
+
+**Deviate when:** we have a real, reasonably complete source.
+
+## No copyrighted tasting vocabulary
+
+**Decision:** the seeded `TastingNote` tree is independently worded. The
+SCA / World Coffee Research Flavor Wheel and its lexicon are excluded.
+
+**Why:** they are copyrighted works. Using them needs permission or a licence.
+
+**Deviate when:** a licence or partnership is in place. The schema absorbs one
+cleanly: `TastingNote` is a reference model with `source`/`external_id`
+columns, so an imported taxonomy lands as canonical rows.
+
+## SvelteKit as a static SPA
+
+**Decision:** `adapter-static`, `ssr = false`, one HTML fallback. Hand-rolled
+CSS, no component library, no CSS framework.
+
+**Why:** the product does not need SSR, and a static bundle has no server
+runtime to deploy or secure. File-based routing and per-route code splitting
+are worth the framework; a component library is not, against a bundle budget.
+
+**Deviate when:** SEO on the public share pages becomes a real requirement.
+That is the one surface where rendering on the server would pay.
+
+## The API is the only interface
+
+**Decision:** the web app gets no privileged access. Every capability is a
+documented REST endpoint.
+
+**Why:** native clients are planned. Anything the SPA can do through a private
+path is something a mobile app will later need reimplemented.
+
+**Deviate when:** never, while mobile clients remain on the roadmap.
+
+## Client-generatable UUIDs, `updated_since`, cursor pagination
+
+**Decision:** UUID primary keys that clients may supply on create, an
+`?updated_since=` filter on every list endpoint, and cursor pagination.
+
+**Why:** all three are cheap now and expensive to retrofit. They are what make
+offline creation and incremental sync possible for a mobile client without
+reshaping the API or backfilling indexes on a live table.
+
+**Deviate when:** never — the cost today is close to zero.
+
+## Tests run against real PostgreSQL
+
+**Decision:** never SQLite, not even for speed.
+
+**Why:** the schema relies on `CHECK` constraints and partial unique indexes
+that SQLite models differently. SQLite would pass things production rejects.
+
+**Deviate when:** never.
+
+## Verify against a running app, not only tests
+
+**Decision:** a feature is not done until it has been exercised against
+`./scripts/dev.sh`.
+
+**Why:** this is not a platitude here. Test settings substitute local backends,
+which hides whole classes of defect. Bugs that a fully green suite missed
+include a missing production dependency, a blank signing key, a wrong error
+field, a 500 where a 400 belonged, and a form handler that threw before
+reaching the network. `tests/test_settings_contract.py` now covers some of
+these, but it cannot cover all of them.
+
+**Deviate when:** the change genuinely cannot affect runtime behaviour.
+
+## Host applications, Compose infrastructure
+
+**Decision:** PostgreSQL and Redis run in Docker Compose; Django and Vite run
+on the host.
+
+**Why:** host processes reload faster and produce readable stack traces, while
+Compose keeps the datastores reproducible.
+
+**Deviate when:** deployment parity or a binary dependency requires full
+containerisation. Put that in `docs/development.md` explicitly.
+
+## Ports derived from the worktree path
+
+**Decision:** `scripts/worktree-ports.sh` hashes the absolute worktree path
+into a port block.
+
+**Why:** several checkouts can run at once without hand-editing `.env`.
+
+**Deviate when:** a platform assigns ports dynamically. Map its reservation to
+`WORKTREE_PRIMARY_PORT` or `WORKTREE_PORT_BLOCK_START` rather than editing the
+helper.
+
+## Dependency cooldowns, locked installs, pinned CI tools
+
+**Decision:** `minimumReleaseAge` for Bun, `exclude-newer = "P7D"` for uv,
+`minimumReleaseAge` for Renovate, locked installs in CI, and explicit
+`UV_VERSION` and `BUN_VERSION` pins.
+
+**Why:** a newly published version is the supply-chain risk window. The tool
+pins matter too: `setup-uv` was previously unpinned, which silently hid a
+local/CI version skew.
+
+`required-version` accompanies the uv cooldown so an older client fails with a
+clear message instead of an opaque settings-discovery error.
+
+**Deviate when:** a security fix needs immediate adoption. Note the exception
+in the PR.
+
+## Generated API types are committed and gated
+
+**Decision:** `apps/web/src/lib/api/schema.d.ts` is generated from the OpenAPI
+schema, committed, and verified by `--check` in CI.
+
+**Why:** if the types drift, the frontend typechecks against an API that no
+longer exists — the worst kind of green build. Generating from Django directly
+rather than a running server keeps it working offline and in CI.
+
+**Deviate when:** never. Regenerate and commit.
+
+## `.context/` stays gitignored
+
+**Decision:** workspace-local agent scratch only.
+
+**Why:** durable knowledge belongs in tracked docs where humans will find it.
+
+**Deviate when:** the information is durable — then it goes in `docs/`,
+`README.md`, or here.
+
+## Pruned from the 508 devkit
+
+**Decision:** this repository started from the 508.dev devkit template. The
+Ruby, Python (FastAPI/Alembic), and TypeScript (Drizzle) convention packs were
+deleted rather than adapted, along with the template's own inventory,
+selection, and design-history documents.
+
+**Why:** FastAPI, Alembic, and Drizzle all conflict with Django owning the
+schema, and a template's scaffolding is noise in a product repo. The
+conventions worth keeping — supply-chain policy, worktree ports, host-apps
+topology, `.context/`, GitHub hygiene — were kept and are recorded above.
+
+**Deviate when:** never; the devkit still exists upstream if it is needed.

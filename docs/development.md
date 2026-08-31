@@ -1,156 +1,162 @@
-# Development
+# Local development
 
-Local development follows the pattern used across existing projects:
+The [README](../README.md) covers requirements and the quick start. This is the
+detail: what the scripts actually do, and what to do when something misbehaves.
 
-- Docker Compose owns infrastructure.
-- App services run on the host.
-- Ports are deterministic per worktree.
+## The shape of it
 
-## Commands
+Application processes run on your host; only PostgreSQL and Redis run in
+containers. Host processes reload faster and give readable stack traces, while
+Compose keeps the datastores reproducible.
+
+`./scripts/dev.sh` does the whole sequence:
+
+1. Copies `.env.example` to `.env` if you have no `.env`.
+2. Computes this worktree's ports and exports them, overriding `.env`.
+3. Starts Postgres and Redis, then waits for Postgres to accept connections.
+4. Applies migrations.
+5. Seeds the reference catalog (idempotent).
+6. Starts Django and Vite, and exits if either one dies.
+
+Ctrl-C stops both.
+
+## Ports
+
+Ports are derived from a hash of the worktree's absolute path, so two checkouts
+can run simultaneously without editing anything:
 
 ```bash
 ./scripts/worktree-ports.sh env
-./scripts/docker-compose.sh up -d postgres redis
-./scripts/dev.sh
-./scripts/check-all.sh
 ```
 
-`worktree-ports.sh env` is the print-only URL/port mode. It prints `WEB_URL`
-first, then `WEB_PORT`, then the remaining assigned ports and derived
-connection strings, and exits without starting services. Keep that order when
-adapting the helper so coding workspace tools discover the web surface before
-API or infrastructure URLs.
+`dev.sh` also derives `PUBLIC_WEB_BASE_URL`, `PUBLIC_SHARE_BASE_URL`,
+`PUBLIC_API_BASE_URL`, and `CORS_ALLOWED_ORIGINS` from those ports. Without
+that, share links and verification emails in one worktree point at another
+worktree's port.
 
-## Worktree Port Reservations
+Exported shell variables win over `.env`, because `django-environ`'s
+`read_env` uses `setdefault`. That is what keeps worktrees isolated.
 
-`scripts/worktree-ports.sh` normally hashes the absolute git worktree path and
-derives stable local ports from that hash. Some agent/worktree orchestrators
-reserve ports for each workspace. Keep product-specific environment variable
-names out of the helper and map them to these generic names in the run command
-or wrapper script:
-
-- `WORKTREE_PORT_BLOCK_START`: first port in a reserved block.
-- `WORKTREE_PORT_BLOCK_SIZE`: size of the reserved block, default `10`.
-- `WORKTREE_PRIMARY_PORT`: one reserved public port.
-- `WORKTREE_PRIMARY_PORT_TARGET`: `WEB_PORT` or `API_PORT`, default `WEB_PORT`.
-
-When a block is present, the helper uses compact offsets inside it for web, API,
-worker health, database, cache, and OTEL example ports. When only one public port
-is present, the helper assigns it to the selected primary target and keeps other
-ports on the normal deterministic worktree allocation.
-
-## Optional Port Reclaim
-
-Dev scripts may offer opt-in port reclaim so a developer can rerun the same
-worktree script after a stale dev process is left behind:
+If a previous run left a port held:
 
 ```bash
 ./scripts/dev.sh --reclaim-ports
-DEVKIT_RECLAIM_PORTS=1 ./scripts/dev.sh
 ```
 
-Reclaiming must stay conservative. Before killing a process, inspect the port
-owner with `lsof`, verify the process cwd or parent process cwd is under the
-current worktree, and verify the command looks like the same service type the
-script is about to start. Refuse to kill unrelated listeners and print the pid,
-cwd, and command so the developer can decide manually.
+That is deliberately narrow. It inspects the listener with `lsof` and refuses
+to kill anything that does not look like this worktree's own dev process.
 
-The root `scripts/dev.sh` includes a small shell example for single host-run
-web-dev processes. It walks a short parent chain from the process listening on
-`WEB_PORT` and only sends `SIGTERM` when it finds a same-worktree JS dev command
-such as Next, Vite, Astro, webpack, rsbuild, Bun, or pnpm. The shell helper is
-generic enough for adapted repos to add other host-run app processes:
+## Running the pieces separately
 
-```sh
-# Example only: add a service-specific signature before enabling this.
-reclaim_service_port api "$API_PORT"
-reclaim_service_port worker-health "$WORKER_HEALTH_PORT"
+```bash
+./scripts/docker-compose.sh up -d postgres redis
+uv run python apps/api/manage.py runserver 127.0.0.1:$API_PORT
+bun run --cwd apps/web dev
 ```
 
-Each extra service needs its own command matcher, such as a Uvicorn app import
-for an API, a queue-worker binary name, or a bot executable. Do not treat all
-same-worktree processes as reclaimable; a repo can run unrelated listeners from
-the same checkout.
+Use `./scripts/docker-compose.sh` rather than `docker compose` directly; it
+injects the worktree-specific ports and project name.
 
-Avoid reclaiming Docker-owned infrastructure ports from the host dev script.
-For Postgres, Redis, MinIO, and similar Compose services, use stable
-`COMPOSE_PROJECT_NAME` with `./scripts/docker-compose.sh up` / `down` so
-same-worktree runs are idempotent. If an infrastructure port is held by
-something else, report the owner and ask the developer to stop it or change the
-configured port.
+## Django management commands
 
-For multi-service repos, prefer a small service-aware mux helper instead of
-copying generic shell globs. A good pattern is:
-
-```text
-scripts/dev.sh web
-  -> scripts/dev_mux.py --ensure-port web
-  -> lsof owner pids for the web URL port
-  -> walk parent/child process tree
-  -> require same worktree path scope
-  -> require service signature, such as the uvicorn app import or discord-bot
-  -> stop the related service process tree
-  -> verify the port is free before starting
+```bash
+uv run python apps/api/manage.py <command>
 ```
 
-This avoids killing a different service that happens to run from the same repo,
-and avoids prefix-path mistakes such as treating `/tmp/app/foo-bar` as being
-inside `/tmp/app/foo`.
+Worth knowing:
 
-## Worktree Includes
+- `createsuperuser` — for `/admin/`.
+- `seed_catalog` — reloads canonical reference data. Idempotent: it matches on
+  slug and updates in place, so it never duplicates and never orphans a foreign
+  key your data already holds.
+- `makemigrations --check --dry-run` — what CI runs. Non-zero means you changed
+  a model without a migration.
+- `spectacular --file schema.yaml` — dump the OpenAPI schema.
+- `check --deploy` — production security checklist.
 
-Use `.worktreeinclude` to allowlist ignored local files that should be copied into new sibling worktrees. Treat entries as gitignore-style path patterns, not shell globs passed directly to `cp`.
+Settings default to `coffeenut.settings.local`. Tests use
+`coffeenut.settings.test`, which points at real Postgres, swaps in a local-memory
+cache, and disables throttle rates.
 
-Example:
+## Tests
 
-```text
-.env
-.env.local
-.env.development.local
-.sops.yaml
+```bash
+./scripts/test.sh                                   # pytest + vitest
+uv run pytest apps/api/tests/test_brewing.py -q     # one file
+uv run pytest -k tenancy                            # by name
+uv run pytest -x --lf                               # stop at first, rerun last failures
+bun run --cwd apps/web test
 ```
 
-Do not include generated state such as `.venv`, `node_modules`, caches, local databases, screenshots, or raw logs. Those should be recreated per worktree.
+Tests need Postgres running; `test.sh` starts it. They will not fall back to
+SQLite — the schema uses `CHECK` constraints and partial unique indexes that
+SQLite models differently, so a SQLite pass would be misleading.
 
-## Workspace Context
+`tests/testapp/` holds concrete models that exist only to exercise the abstract
+bases in `coffeenut.common`. It is installed by the test settings and has real
+migrations, because its foreign key to the custom user model means `run_syncdb`
+would create its tables before `accounts` exists.
 
-Do not commit `.context/`. Conductor creates it as workspace-local scratch for
-agents. Durable runbooks and decisions belong in tracked docs such as this file,
-`docs/tooling.md`, and `docs/pattern-report.md`.
+## The full gate
 
-## Docker Build Contexts
-
-Keep `.dockerignore` in every repo that has Dockerfiles or Compose services. Exclude local secrets, dependency directories, caches, agent scratch state, and build outputs so Docker does not upload large or sensitive files into the build context.
-
-Example:
-
-```text
-.git
-.context
-.env
-.env.*
-!.env.example
-.venv
-node_modules
-**/node_modules
-__pycache__
-.pytest_cache
-.mypy_cache
-.ruff_cache
-dist
-build
+```bash
+./scripts/check-all.sh
 ```
 
-## Why Host-Run Services
+Runs, in order: ruff (lint + format), biome, mypy, svelte-check, the
+missing-migration check, the API type drift check, pytest, vitest, and the web
+build. This is exactly what CI runs.
 
-Host-run app services are faster for reload loops, easier for agents to inspect, and avoid rebuilding containers for normal code changes.
+## API types
 
-Use full-container Compose only when validating deployment parity.
+The SPA's types come from the OpenAPI schema and are committed:
 
-## Agent Notes
+```bash
+./scripts/generate-api-types.sh            # regenerate
+./scripts/generate-api-types.sh --check    # verify in sync
+```
 
-- Keep root scripts as stable entrypoints. Change package-manager internals
-  behind them when adapting a target repo.
-- Use `./scripts/worktree-ports.sh env` before debugging port conflicts.
-- Copy ignored local config through `.worktreeinclude`; do not commit copied
-  `.env` files or generated workspace state.
+It reads the schema from Django directly, so it needs no running server.
+
+`apps/web/src/lib/api/schema.d.ts` is excluded from Biome. Formatting it would
+permanently fail the drift check, because regeneration produces unformatted
+output.
+
+## Troubleshooting
+
+**429 on register or login.** You hit the real throttle — 5 registrations an
+hour, 10 auth attempts a minute. Common when running automated UI tests. Clear
+the counters:
+
+```bash
+./scripts/docker-compose.sh exec -T redis redis-cli FLUSHDB
+```
+
+**A share link or verification email points at the wrong port.** You started
+Django directly instead of through `dev.sh`, so the `PUBLIC_*` variables fell
+back to `.env`.
+
+**`svelte-check` reports errors that make no sense.** Run
+`bun run --cwd apps/web typecheck`, which runs `svelte-kit sync` first to
+regenerate `.svelte-kit/`. Deleting that directory and re-running is safe.
+
+**Session lost after a restart, or a saved browser session stops working.**
+Refresh tokens rotate and the previous one is blacklisted. An old cookie is
+genuinely dead; sign in again. For multi-step browser automation, do the whole
+flow in one session rather than reusing saved state.
+
+**uv refuses to run.** `required-version = ">=0.9.17"` in `pyproject.toml`
+means an older uv fails deliberately rather than silently ignoring the
+dependency cooldown. Upgrade with `uv self update`.
+
+**Postgres will not start.** Check the port is free with
+`./scripts/worktree-ports.sh env` and `lsof -i :<port>`. To start clean:
+
+```bash
+./scripts/docker-compose.sh down -v    # destroys local data
+```
+
+## Agent scratch
+
+`.context/` is gitignored, workspace-local scratch. Do not commit it. Durable
+knowledge belongs in `docs/`, `DECISIONS.md`, or the README.

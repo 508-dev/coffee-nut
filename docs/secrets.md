@@ -1,28 +1,40 @@
 # Secrets
 
-Most repos should use environment variables and CI secrets.
+Environment variables and CI secrets. Nothing encrypted is committed to this
+repository, and nothing needs to be.
 
-SOPS is optional. Add it only when the repository needs encrypted files checked into Git, such as shared non-production config or deploy manifests.
+`.env.example` is the contract. Every value in it is safe to be public — it
+exists to document shape and provide local-safe defaults. Copy it to `.env`,
+which is gitignored.
 
-GitHub secret scanning and push protection should be the first choice when they
-are available for the repository. Use the Gitleaks extra only when maintainers
-also want repo-local CI scanning and are ready to triage historical findings.
+## What must change before deploying
 
-If SOPS is adopted:
+| Variable | Local default | Production requirement |
+| --- | --- | --- |
+| `DJANGO_SECRET_KEY` | an obvious placeholder | Real, ≥ 32 bytes. `production.py` has no default and will fail loudly if unset. |
+| `JWT_SIGNING_KEY` | blank, falls back to the secret key | Set separately, so rotating one does not invalidate the other. |
+| `DJANGO_DEBUG` | `true` | `false`. |
+| `DJANGO_ALLOWED_HOSTS` | localhost | The real hostnames. |
+| `CORS_ALLOWED_ORIGINS` | the local SPA | The real SPA origin. Credentials are sent, so `*` is not valid. |
+| `JWT_REFRESH_COOKIE_SECURE` | `false` | `true`. |
+| `EMAIL_*` | console backend | A real provider. |
 
-1. Copy `.sops.yaml.example` to `.sops.yaml`.
-2. Replace the example Age recipient.
-3. Store encrypted files under `secrets/`.
-4. Document decrypt/edit commands in this file.
+Generate a secret key with:
 
-Do not commit plaintext secrets.
+```bash
+uv run python -c "import secrets; print(secrets.token_urlsafe(64))"
+```
 
-## Agent Notes
+A blank value is not the same as an unset one. `JWT_SIGNING_KEY=` in `.env` is
+*present and empty*, which is why the setting falls back with `or SECRET_KEY`
+rather than relying on a default — an empty HMAC key would otherwise reach the
+JWT library.
 
-- Replace generic reporting language with the target repo's real private
-  vulnerability channel before shipping public docs.
-- Do not add `.sops.yaml` unless encrypted tracked files are actually needed.
-- Do not add the Gitleaks workflow silently. Secret scanning can be noisy until
-  a baseline and ignore process exist.
-- When a real secret is found, tell maintainers to rotate it. Removing it from
-  git history is not enough.
+## Scanning
+
+GitHub's native secret scanning and push protection are the first choice, if
+the hosting organisation provides them. CI-based scanning is not enabled;
+it needs a baseline and someone willing to triage historical findings.
+
+If a real secret is ever committed: **rotate it**. Removing it from git history
+is not sufficient, because it may already have been cloned or indexed.

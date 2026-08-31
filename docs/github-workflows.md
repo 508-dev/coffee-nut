@@ -1,71 +1,62 @@
-# GitHub Workflows
+# GitHub workflows
 
-508 Devkit separates common GitHub hygiene from team-specific automation.
+One workflow, `.github/workflows/ci.yml`, with three component jobs behind a
+path filter and a summary gate.
 
-## Default Files
+## Jobs
 
-Root `.github/` files are meant to be safe defaults for most repositories:
+| Job | Runs when | Does |
+| --- | --- | --- |
+| `changes` | always | Path filter deciding which component jobs run. |
+| `api` | `apps/api/**`, `pyproject.toml`, `uv.lock`, `.python-version`, `scripts/*.sh`, the generated schema types | ruff, mypy, Django checks, missing-migration gate, pytest, and the API type drift check. |
+| `web` | `apps/web/**`, `package.json`, `bun.lock`, `biome.json`, `scripts/*.sh` | biome, svelte-check, vitest, static build. |
+| `compose` | `compose.yml`, `.env.example` | Validates the Compose file parses against the example env. |
+| `ci-passed` | always | The required check. |
 
-- `.github/PULL_REQUEST_TEMPLATE.md`: prompts for summary, validation, risk, and screenshots.
-- `.github/ISSUE_TEMPLATE/bug_report.yml`: captures reproducible defects.
-- `.github/ISSUE_TEMPLATE/feature_request.yml`: captures product or workflow requests.
-- `.github/ISSUE_TEMPLATE/docs_request.yml`: captures documentation gaps.
-- `.github/ISSUE_TEMPLATE/config.yml`: keeps blank issues allowed and documents where to add discussion links.
-- `.github/workflows/ci.yml`: runs baseline web/tooling, Python stack, and Compose checks.
+`ci-passed` exists because the component jobs are skipped by the path filter,
+and a skipped job cannot be a required check on its own. It treats `success`
+and `skipped` as passes, but only after confirming `changes` itself succeeded —
+otherwise a broken path filter would let everything skip silently.
 
-Keep these templates short. They should improve issue and PR quality without making lightweight collaboration feel bureaucratic.
+**These four move together.** Adding a job means updating the filter, the job
+list in `ci-passed`'s `needs`, and its result check. Editing one alone
+degrades the merge gate without failing anything.
 
-Workflows pin third-party actions to commit SHAs and use `harden-runner` in audit mode. When applying this devkit, update pinned SHAs intentionally rather than floating back to moving tags.
+## The api job
 
-Plain checkout-and-run validation jobs should usually keep `contents: read` only.
-Do not add `pull-requests: read` unless the job explicitly calls PR APIs or
-posts PR comments.
+It runs a real PostgreSQL 17 service container. The schema uses `CHECK`
+constraints and partial unique indexes that SQLite models differently, so
+SQLite would pass things production rejects.
 
-If path-filtered jobs are used with branch protection, require a final aggregate
-job such as `ci-passed` instead of requiring every skipped job directly.
-When using `dorny/paths-filter` without `pull-requests: read`, set `token: ""`
-and check out enough history so the action uses git-based detection.
+Two gates there are easy to overlook and worth keeping:
 
-## Security Extras
+- **`makemigrations --check --dry-run`.** A model change without a migration is
+  the most common way this repository breaks for everyone else. Cheap to check,
+  expensive to discover after merge.
+- **`generate-api-types.sh --check`.** If the committed types drift from the
+  schema, the frontend typechecks against an API that no longer exists.
 
-Secret scanning and Dependency Review are extras, not default workflows.
+## Hardening
 
-Use `extras/github/gitleaks.yml.example` only when maintainers want CI history
-scanning for secrets and are ready to triage baseline findings or false
-positives.
+- `permissions: contents: read` at the workflow level.
+- Actions pinned by commit SHA.
+- `persist-credentials: false` on checkout.
+- `harden-runner` in audit mode.
+- `paths-filter` runs with an empty token, forcing local git comparison rather
+  than needing `pull-requests: read`.
+- Tool versions pinned via `UV_VERSION` and `BUN_VERSION`.
 
-Use `extras/github/dependency-review.yml.example` only when maintainers want
-GitHub dependency graph-based vulnerability, license, or dependency-change
-reporting.
+## Templates
 
-## Dependency Review
+`.github/ISSUE_TEMPLATE/` and `.github/PULL_REQUEST_TEMPLATE.md` are generic
+and need no project-specific configuration.
 
-Dependency Review is not part of the default security workflow. It depends on
-GitHub's dependency graph and is best treated as vulnerability, license, and
-dependency-change reporting, not as the primary active supply-chain attack
-detector.
+## Not enabled
 
-Use `extras/github/dependency-review.yml.example` only when the repo owner wants
-GitHub dependency graph-based reporting. To enable it in a target repo:
-
-1. Enable GitHub's dependency graph for the repository.
-2. Copy `extras/github/dependency-review.yml.example` to `.github/workflows/dependency-review.yml`.
-3. Keep the workflow opt-in; do not gate it on `repository.private == false`.
-
-## CODEOWNERS
-
-Do not enable CODEOWNERS with placeholders. Copy `extras/github/CODEOWNERS.example` to `.github/CODEOWNERS` only after replacing owners with real GitHub users or teams.
-
-Start broad, then make ownership more specific as code ownership becomes real. CODEOWNERS can affect required reviews and branch protection, so stale entries create workflow friction.
-
-## Discussions
-
-Use `extras/github/community/DISCUSSION_TEMPLATE/questions.yml` only when the repository uses GitHub Discussions for support or product feedback.
-
-Discussion templates should be lighter than issue templates. Ask for the question, context, and a minimal example; avoid long pledges or community rules unless the project has an explicit support policy.
-
-## TODO To Issue Automation
-
-Use `extras/todo-to-issue/` only as an opt-in workflow. It can be useful for codebase maintenance, but it grants write permissions and can create issue noise.
-
-Prefer manual runs first. Promote to scheduled or merge-triggered runs only after the team agrees on identifiers, labels, ownership, and whether source files should receive issue links.
+- **Secret scanning in CI.** GitHub's native scanning and push protection are
+  the better first step. A CI scanner needs a baseline and someone to triage
+  historical findings.
+- **Dependency review.** Depends on GitHub's dependency graph being enabled,
+  and reports vulnerabilities and licences rather than detecting active
+  supply-chain attacks. Renovate cooldowns and locked installs do more here.
+- **Deploy workflows.** No platform chosen; see [`deployment.md`](deployment.md).

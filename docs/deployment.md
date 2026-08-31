@@ -1,47 +1,64 @@
 # Deployment
 
-508 Devkit does not choose a deployment platform by default. Pick the smallest deployment shape that matches the product, team, and operational constraints.
+**Nothing is deployed yet, and no platform has been chosen.** This document
+records what a deployment will need, so the decision can be made with the
+constraints visible.
 
-## Decision Record
+## Decision record
 
-When applying this devkit to a project, record the deployment decision here:
+Fill this in when the platform is chosen. Leaving it blank is better than
+guessing.
 
 - Target platform:
 - Services deployed:
-- Database and storage:
+- Database and backups:
 - Secrets management:
-- Preview environment strategy:
+- Preview environments:
 - Rollback strategy:
-- Production health checks:
 
-## Common Options
+## What has to be deployed
 
-| Option | Good Fit | Tradeoffs |
-| --- | --- | --- |
-| Fly.io | Small teams that want simple app hosting close to users. | Requires platform-specific config and operational familiarity. |
-| Render | Straightforward web services, workers, and managed databases. | Less control than lower-level infrastructure. |
-| Vercel or Cloudflare Pages | Frontend-first apps and edge-friendly web surfaces. | Backend, worker, and database workflows may need separate hosting. |
-| Kamal | Teams that want Docker deploys to owned servers. | Requires server operations, registry setup, and rollback discipline. |
-| Coolify | Self-hosted platform-style deploys. | Adds a platform to operate and upgrade. |
-| Kubernetes | Larger teams with existing cluster operations. | Too much machinery for most new projects. |
+Two artefacts, and they are unusually independent:
 
-## Workflow Guidance
+1. **The API** — a Django WSGI/ASGI application needing PostgreSQL 17 and
+   Redis. `apps/api/src/coffeenut/wsgi.py` is the entrypoint, and
+   `coffeenut.settings.production` the settings module.
+2. **The web app** — a directory of static files from `bun run build`. There is
+   no server runtime; any static host or CDN will do.
 
-Keep deployment workflows platform-specific and explicit. A project should add deploy CI only after the platform is chosen and secrets are configured.
+Because the SPA is static and talks to the API purely over HTTPS, the two can
+be hosted separately. That also means CORS and the refresh-cookie domain need
+deliberate configuration — see below.
 
-Before enabling automatic production deploys:
+## Before the first deploy
 
-1. Add a health endpoint or smoke test.
-2. Document required environment variables.
-3. Confirm rollback behavior.
-4. Keep preview deploys separate from production deploys.
-5. Use least-privilege deployment credentials.
+1. **Set the real environment.** See [`secrets.md`](secrets.md) for the
+   variables that must change. `production.py` deliberately has no default for
+   `DJANGO_SECRET_KEY`, so a missing one fails at startup rather than silently
+   running insecurely.
+2. **Decide the cookie domain.** The refresh token is an `HttpOnly` cookie
+   scoped to `/api/v1/auth/`. If the SPA and API are on different hosts, set
+   `JWT_REFRESH_COOKIE_DOMAIN` to a shared parent domain, and confirm
+   `SameSite` still permits the request. Serving both from one domain avoids
+   the problem entirely and is the simpler choice.
+3. **Choose an email provider.** Registration verification and password reset
+   need real delivery. Local development uses the console backend.
+4. **Run `migrate` before serving.** And `collectstatic`, for the admin.
+5. **Seed the catalog.** `manage.py seed_catalog` is idempotent, so it is safe
+   to run on every deploy.
+6. **Check `manage.py check --deploy`.** It flags the security settings that
+   production mode should have on.
 
-## Agent Notes
+## Health
 
-- Do not infer a deployment platform from this devkit. Inspect the target repo,
-  hosting account, and team preference first.
-- Keep deployment workflows out of new repos until secrets and rollback are
-  known.
-- If deployment is undecided, leave the decision record blank rather than
-  copying placeholder platform files.
+`/health/` returns `{"status": "ok"}` and requires no authentication. It does
+not currently check the database, which is deliberate — it answers "is this
+process up?", not "is the system healthy?". A deeper check should be a separate
+endpoint if a platform needs one.
+
+## Not yet decided
+
+- Whether to containerise the API or run it on a platform buildpack. Compose
+  here is for local infrastructure only, not a deployment artefact.
+- Backup and restore policy for PostgreSQL.
+- Object storage, which arrives with photo support.

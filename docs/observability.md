@@ -1,28 +1,38 @@
 # Observability
 
-508 Devkit includes environment names for logs, Sentry, and OTEL, but does not force a telemetry vendor or SDK into every project.
+Nothing is wired up yet. The environment names exist so that adding a
+destination later is configuration rather than a code change.
 
-Root defaults:
+Available in `.env.example`:
 
-- `LOG_LEVEL`
-- `SENTRY_DSN`
-- `OTEL_EXPORTER_OTLP_ENDPOINT`
-- `OTEL_SERVICE_NAME`
+- `LOG_LEVEL` — used now; drives Django's root logger.
+- `SENTRY_DSN` — unused.
+- `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME` — unused.
 
-Use `example_shared.observability.configure_logging` as the minimal runtime hook. Add Sentry or OpenTelemetry SDK initialization only after the target service chooses those dependencies.
+Django logs to the console via the `LOGGING` block in
+`apps/api/src/coffeenut/settings/base.py`.
 
-## When To Add SDKs
+## When to add an SDK
 
-Add Sentry when the project has a real error reporting destination and release/environment naming.
+Add Sentry once there is a real error-reporting destination and a release and
+environment naming convention. It is the higher-value of the two: a
+multi-tenant app wants to know about a 500 before a user reports it.
 
-Add OpenTelemetry when the project has a collector, trace sampling policy, and service naming convention.
+Add OpenTelemetry once there is a collector, a sampling policy, and a service
+naming convention. Until then it is a dependency with nowhere to send data.
 
-Keep SDK initialization in one shared helper per runtime so API, worker, and job processes behave consistently.
+Do not add either just because the variables exist.
 
-## Agent Notes
+## Worth instrumenting first
 
-- Do not add telemetry SDK dependencies just because the env vars exist.
-- Add Sentry, OTEL, metrics, or log shipping only after the target repo has a
-  destination and naming convention.
-- Keep one runtime-local initialization helper so services do not configure
-  observability differently by accident.
+When error reporting does arrive, these are the signals that matter for this
+app specifically:
+
+- **Tenancy failures.** `OwnedModelViewSet` raises `ImproperlyConfigured` when
+  a viewset's queryset is not an `OwnedQuerySet`. That should page someone.
+- **Public share traffic.** The one unauthenticated endpoint, and the one most
+  likely to be scraped or abused.
+- **Auth throttling.** Sustained 429s on `/auth/token/` are a credential
+  stuffing signal, not a capacity problem.
+- **Migration state.** A deploy that starts serving before migrations finish
+  produces a specific, recognisable class of error.

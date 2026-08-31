@@ -17,7 +17,7 @@
     "test": "bun run --cwd apps/web test",
     "check": "./scripts/check-all.sh",
     "ports": "./scripts/worktree-ports.sh env",
-    "generate:api": "bun run --cwd apps/web generate:api"
+    "generate:api": "./scripts/generate-api-types.sh"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.13",

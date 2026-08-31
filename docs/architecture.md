@@ -20,7 +20,6 @@ Settled with the project owner before writing this document:
 | Product identity | `Coffee` + `Bag` split | `Coffee` is the product (origin, process, roaster). `Bag` is one purchase of it. Brews attach to a `Bag`. |
 | Reference data | Seeded canonical + user custom | We ship curated fixtures; users may add private entries. A provider interface is defined but not implemented. |
 | Sharing | Public links now, social-ready model | v1 exposes only unguessable per-brew links, but ownership flows through one visibility chokepoint so follows or grants can be added later without reworking every queryset. |
-| Devkit | Prune to what we use | See `docs/selection-report.md`. |
 
 ## 2. System Shape
 
@@ -542,9 +541,8 @@ No component framework. Route-level splitting is automatic in SvelteKit. The
 method-aware brew form is one component driven by `BrewMethod.parameter_schema`
 rather than eight per-method components.
 
-`docs/frontend.md` maps the devkit's neutral `WEB_API_BASE_URL` to SvelteKit's
-`PUBLIC_API_BASE_URL`; `scripts/dev.sh` exports the mapping so the worktree
-port assignment flows through automatically.
+`scripts/dev.sh` derives `PUBLIC_API_BASE_URL` from the worktree ports and
+exports it, so SvelteKit picks it up automatically without editing `.env`.
 
 ## 8. Testing
 
@@ -556,39 +554,26 @@ port assignment flows through automatically.
 | Migrations | `makemigrations --check` in CI | Model edits without migrations. |
 | Web unit | Vitest | Fetch wrapper, refresh lock, unit conversion, stores. |
 | Web component | Vitest + Testing Library | Method-aware brew form. |
-| E2E | deferred | Playwright once the flows settle; the devkit already reserves a `playwright` pytest marker. |
+| E2E | deferred | Playwright once the flows settle; `pyproject.toml` already reserves a `playwright` pytest marker. |
 
 Tests run against real Postgres, never SQLite — the schema depends on Postgres
 `CHECK` constraints and partial unique indexes that SQLite models differently.
 
-## 9. Devkit Changes Required
+## 9. History: from the 508 devkit
 
-Detailed per-path decisions are in `docs/selection-report.md`. The changes with
-real engineering content:
+This repository was generated from the 508.dev devkit template. The template's
+own Ruby, Python (FastAPI/Alembic), and TypeScript (Drizzle) convention packs
+were deleted rather than adapted — both conflicted with Django owning the
+schema — and its scaffolding docs (`MANIFEST.md`, the selection report) were
+removed once the selection they recorded was complete. `DECISIONS.md` § *Pruned
+from the 508 devkit* has the summary; the reasoning behind each individual
+decision — the tenancy chokepoint, the JWT delivery split, the Coffee/Bag
+split, and the rest — is recorded there as standing decisions, not history.
 
-1. **`scripts/dev.sh` needs a genuine rework.** It currently starts Compose plus
-   a single JS watcher. It must supervise two host processes — Django on
-   `API_PORT`, Vite on `WEB_PORT` — and tear both down cleanly on exit. Its
-   existing `is_expected_web_dev_command` already matches `vite`, and
-   `reclaim_service_port` generalises to the API process.
-2. **CI job matrix replacement.** `changes`, `typescript`, `python`, and
-   `ci-passed` are mutually coupled; `ci-passed` hard-codes job names, so a
-   partial edit silently degrades the merge gate. Replace with `api` and `web`,
-   add a Postgres service container, and add the missing-migrations gate.
-3. **`stacks/python` is deleted, not adapted.** It is FastAPI +
-   pydantic-settings + Alembic. Django supplies all three concerns itself.
-   Ruff, MyPy, and pytest configuration is ported to the root `pyproject.toml`
-   before deletion.
-4. **`stacks/typescript` is deleted, not adapted.** Its Drizzle example
-   conflicts with Django owning the schema. Biome, tsconfig, and Vitest config
-   are ported into `apps/web`.
-5. **`.env.example` rewrite.** Drop `OPENAI_*`; add `DJANGO_SECRET_KEY`,
-   `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`,
-   `JWT_ACCESS_LIFETIME`, `JWT_REFRESH_LIFETIME`, `EMAIL_*`,
-   `PUBLIC_API_BASE_URL`, `PUBLIC_SHARE_BASE_URL`. The worktree port block stays
-   verbatim.
-6. **Redis is kept**, earning its place as the DRF throttle and cache backend
-   rather than as unused devkit furniture.
+What survived from the template and still matters day to day: host-run app
+processes against Compose-managed Postgres and Redis, worktree-derived ports,
+dependency cooldowns, `.context/` conventions, and the GitHub Actions hygiene
+in `docs/github-workflows.md`.
 
 ## 10. Settled Since First Draft
 
@@ -614,7 +599,7 @@ real engineering content:
    requires for `exclude-newer = "P7D"`. The scaffold sets both
    `required-version` and the cooldown, and pins an explicit `version:` for
    `astral-sh/setup-uv` in CI — which was previously unpinned and silently
-   skewed from local. See `docs/selection-report.md` § Toolchain Constraints.
+   skewed from local. See `docs/supply-chain.md`.
 
 ## 11. Open Questions
 
@@ -626,7 +611,7 @@ Not blocking the scaffold; each has a stated default so work can proceed.
 2. **Transactional email provider.** Verification and password reset need real
    delivery. *Default: console backend locally, provider chosen at deploy.*
 3. **Photos.** Bag and brew photos are an obvious want and need object storage.
-   `extras/object-storage/` has a MinIO example ready. *Default: out of v1.*
+   Needs an object storage decision first — none has been made. *Default: out of v1.*
 4. **Multi-currency prices.** Stored as amount + ISO 4217 code with no
    conversion. *Default: no FX; display in the recorded currency.*
 5. **Deployment target.** Unset. It determines the production Dockerfiles, the
@@ -660,7 +645,6 @@ Not blocking the scaffold; each has a stated default so work can proceed.
    toggle, and settings.
 
 Every step is complete.
-Everything after them is largely mechanical.
 
 The tenancy sweep from step 2 is live and now covers `grinders`, `coffees`,
 `bags`, and `brews` — picked up automatically as each was registered, with no

@@ -32,8 +32,7 @@ authority; this file is the operating manual.
 
 - `AGENTS.md`: canonical agent operating instructions.
 - `docs/architecture.md`: data model, API surface, auth, permissions, frontend.
-- `docs/selection-report.md`: what was kept from the 508 devkit, and why.
-- `DECISIONS.md`: standing decisions and their rationale.
+- `DECISIONS.md`: standing decisions and why they were made.
 - `apps/api`: Django project. Domain apps under `src/coffeenut/`.
 - `apps/web`: SvelteKit SPA in static mode.
 - `scripts`: stable entrypoints for dev, lint, typecheck, test, format.
