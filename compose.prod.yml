@@ -1,0 +1,99 @@
+# Production stack, deployed by Coolify's docker compose build pack. Not for
+# local development; compose.yml is. See docs/deployment.md.
+#
+# Coolify routes the public domain to `web` on port 80. Nothing publishes a
+# host port: the services reach each other on the stack's private network.
+#
+# Required variables have no default and stop the deploy when missing. Optional
+# ones default to a working value rather than to empty, because django-environ
+# reads a present-but-blank variable as "" instead of falling back.
+
+services:
+  web:
+    build:
+      context: .
+      target: web
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      target: api
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?set a long random value}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:?set a long random value, distinct from DJANGO_SECRET_KEY}
+      # localhost is for the healthcheck below, which bypasses nginx.
+      DJANGO_ALLOWED_HOSTS: ${PUBLIC_HOST:?set the public hostname, e.g. coffee.508.dev},localhost
+      PUBLIC_WEB_BASE_URL: https://${PUBLIC_HOST}
+      PUBLIC_SHARE_BASE_URL: https://${PUBLIC_HOST}/s
+      # Same origin as the SPA, so CORS is moot; set for native clients' sake.
+      CORS_ALLOWED_ORIGINS: https://${PUBLIC_HOST}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-coffeenut}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-coffeenut}
+      REDIS_URL: redis://redis:6379/0
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
+      # No email provider yet (docs/architecture.md §11). Until one is chosen,
+      # verification and reset emails go to this container's log.
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      EMAIL_HOST: ${EMAIL_HOST:-localhost}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-true}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-noreply@localhost}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # Django redirects plain HTTP to HTTPS, so claim the proxy already did TLS.
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request as u; u.urlopen(u.Request('http://localhost:8000/health/', headers={'X-Forwarded-Proto': 'https'}), timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      # Migrations and catalog seeding run before gunicorn starts.
+      start_period: 60s
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-coffeenut}
+      POSTGRES_USER: ${POSTGRES_USER:-coffeenut}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set a random value; URL-safe, it is embedded in DATABASE_URL}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # Readiness only; pg_isready succeeds before authentication is attempted.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    # Cache and throttle counters only, so nothing worth persisting.
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--loglevel", "warning"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

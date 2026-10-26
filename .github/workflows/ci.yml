@@ -63,6 +63,9 @@ jobs:
             infra:
               - "compose.yml"
               - "docker-compose.yml"
+              - "compose.prod.yml"
+              - "Dockerfile"
+              - "deploy/**"
               - ".env.example"
             workflow:
               - ".github/workflows/**"
@@ -193,6 +196,16 @@ jobs:
 
       - name: Validate Compose config
         run: docker compose -f compose.yml --env-file .env.example config
+
+      - name: Validate production Compose config
+        # Pushes deploy straight to Coolify, so catch a malformed file here.
+        # The required variables only need to be present, not real.
+        env:
+          DJANGO_SECRET_KEY: ci
+          JWT_SIGNING_KEY: ci
+          PUBLIC_HOST: ci.invalid
+          POSTGRES_PASSWORD: ci
+        run: docker compose -f compose.prod.yml config --quiet
 
   ci-passed:
     if: always()
