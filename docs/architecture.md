@@ -614,9 +614,9 @@ Not blocking the scaffold; each has a stated default so work can proceed.
    Needs an object storage decision first — none has been made. *Default: out of v1.*
 4. **Multi-currency prices.** Stored as amount + ISO 4217 code with no
    conversion. *Default: no FX; display in the recorded currency.*
-5. **Deployment target.** Unset. It determines the production Dockerfiles, the
-   static-asset host, and the CORS and cookie-domain configuration for the
-   `HttpOnly` refresh cookie.
+5. **Deployment target.** *Decided:* Coolify, one compose stack serving the SPA
+   and API from a single origin, so no CORS or cookie-domain configuration is
+   needed. See [`deployment.md`](deployment.md).
 
 ## 12. Suggested Sequence
 

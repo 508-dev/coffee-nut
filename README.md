@@ -216,14 +216,14 @@ uv run python -c "import secrets; print(secrets.token_urlsafe(64))"
 | [`docs/development.md`](docs/development.md) | Local development runbook and troubleshooting. |
 | [`DECISIONS.md`](DECISIONS.md) | Standing decisions and why they were made. |
 | [`AGENTS.md`](AGENTS.md) | Operating instructions for coding agents. |
-| [`docs/deployment.md`](docs/deployment.md) | Deployment notes. No target chosen yet. |
+| [`docs/deployment.md`](docs/deployment.md) | Production on Coolify: shape, configuration, auto-deploy, runbook. |
 
 ## Status
 
-Feature-complete against the original brief and fully tested, but not yet
-deployed anywhere. Open questions are tracked in
-[`docs/architecture.md` §11](docs/architecture.md): transactional email
-provider, photo storage, multi-currency handling, and the deployment target.
+Feature-complete against the original brief, fully tested, and deployed at
+<https://coffee.508.dev> (see [`docs/deployment.md`](docs/deployment.md)).
+Open questions are tracked in [`docs/architecture.md` §11](docs/architecture.md):
+transactional email provider, photo storage, and multi-currency handling.
 
 ## License
 
